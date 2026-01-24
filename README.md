@@ -90,6 +90,3 @@ docker cp ./backup.json ecs-timeline:/app/data/timeline.json
 5. Filter event types using the sidebar checkboxes
 6. Export timeline via the sidebar when done
 
-## License
-
-ISC
