@@ -13,11 +13,7 @@ Browser-based timeline visualization for Elastic Common Schema (ECS) events. Sup
 
 ## Quick Start
 
-### Local Use (Single User)
-
-Open `index.html` directly in a browser. No server required.
-
-### Collaborative Use (Multiple Users)
+### Collaborative Use
 
 #### Prerequisites
 
