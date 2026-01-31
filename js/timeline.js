@@ -1,5 +1,3 @@
-import * as d3 from '../lib/d3.v7.min.js';
-
 /**
  * ECS Timeline Builder - D3.js Timeline Visualization
  * Renders swim lane timeline with cross-host connection lines

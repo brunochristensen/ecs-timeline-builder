@@ -77,7 +77,7 @@ function parseTimestamp(event) {
         'event.end'             // When event ended (fallback)
     ]);
 
-    if (!tsValue) {
+    if (tsValue) {
         const date = new Date(tsValue);
         return isNaN(date.getTime()) ? null : date;
     } else {
@@ -564,16 +564,6 @@ export function parseEvents(input) {
             try {
                 rawEvents = [JSON.parse(trimmed)];
             } catch (e) {
-                // Check if this looks like multiple back-to-back objects
-                // Pattern: closing brace followed by opening brace (with optional whitespace)
-                if (/}\s*\n\s*\{/.test(trimmed) || /}\s*\{/.test(trimmed)) {
-                    throw new Error(
-                        'Multiple JSON objects detected. Please use one of these formats:\n' +
-                        '• Wrap objects in an array: [{...}, {...}]\n' +
-                        '• Use NDJSON: one minified object per line'
-                    );
-                }
-
                 // If that fails, try NDJSON (one JSON object per line)
                 const lines = trimmed.split('\n').filter(line => line.trim());
                 rawEvents = lines.map((line, i) => {
@@ -587,6 +577,15 @@ export function parseEvents(input) {
 
                 // If NDJSON also failed to produce results, throw original error
                 if (rawEvents.length === 0) {
+                    // Check if this looks like multiple back-to-back objects
+                    // Pattern: closing brace followed by opening brace (with optional whitespace)
+                    if (/}\s*\n\s*\{/.test(trimmed) || /}\s*\{/.test(trimmed)) {
+                        throw new Error(
+                            'Multiple JSON objects detected. Please use one of these formats:\n' +
+                            '• Wrap objects in an array: [{...}, {...}]\n' +
+                            '• Use NDJSON: one minified object per line'
+                        );
+                    }
                     throw new Error(`Failed to parse JSON: ${e.message}`);
                 }
             }

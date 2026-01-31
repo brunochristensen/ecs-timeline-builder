@@ -314,7 +314,8 @@ function parseAndRender() {
         // If sync is enabled, send raw events to server
         if (isConnected()) {
             // Extract raw events for the unique parsed ones
-            const uniqueRawEvents = uniqueNewEvents.map(e => e.raw);
+            const uniqueRawEvents = uniqueNewEvents.map(e => ({ _id: e.id, ...e.raw}));
+            console.log('Sending to server:', uniqueRawEvents);
             sendEventsToServer(uniqueRawEvents);
         }
 

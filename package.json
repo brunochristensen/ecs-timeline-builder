@@ -9,15 +9,15 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/brunochristensen/ECSTimelineBuilder.git"
+    "url": "git+https://github.com/brunochristensen/ecs-timeline-builder.git"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "bugs": {
-    "url": "https://github.com/brunochristensen/ECSTimelineBuilder/issues"
+    "url": "https://github.com/brunochristensen/ecs-timeline-builder/issues"
   },
-  "homepage": "https://github.com/brunochristensen/ECSTimelineBuilder#readme",
+  "homepage": "https://github.com/brunochristensen/ecs-timeline-builder#readme",
   "dependencies": {
     "express": "^4.18.2",
     "ws": "^8.16.0"
