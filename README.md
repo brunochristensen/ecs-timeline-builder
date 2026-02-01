@@ -49,7 +49,7 @@ Build and export the Docker image:
 
 ```bash
 docker build -t ecs-timeline-builder .
-docker save ecs-timeline-builder > ecs-timeline-builder.tar
+docker save ecs-timeline-builder -o ecs-timeline-builder.tar
 ```
 
 Transfer `ecs-timeline-builder.tar` to the closed network.
@@ -57,7 +57,7 @@ Transfer `ecs-timeline-builder.tar` to the closed network.
 ### Deployment (on closed network)
 
 ```bash
-docker load < ecs-timeline-builder.tar
+docker load -i ecs-timeline-builder.tar
 docker run -d -p <host-port>:12345 -v timeline-data:/app/data --name ecs-timeline ecs-timeline-builder
 ```
 
