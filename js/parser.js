@@ -10,7 +10,7 @@
 /**
  * Safely get a nested property from an object
  */
-function getNestedValue(obj, path, defaultValue = null) {
+export function getNestedValue(obj, path, defaultValue = null) {
     if (!obj || !path) return defaultValue;
     const keys = path.split('.');
     let current = obj;

@@ -3,7 +3,7 @@ const assert = require('node:assert');
 const fs = require('node:fs');
 const path = require('node:path');
 
-const ECSParser = require('../js/parser.js');
+const { parseEvents, buildHostRegistry, identifyConnections, getNestedValue } = require("../js/parser");
 
 /**
  * Helper to load test data files
@@ -27,7 +27,7 @@ describe('ECSParser', () => {
                 'event': { 'category': ['network'], 'action': 'connection_established' }
             };
 
-            const result = ECSParser.parse([event]);
+            const result = parseEvents([event]);
 
             assert.strictEqual(result.length, 1);
             assert.strictEqual(result[0].host.hostname, 'webserver-01');
@@ -42,7 +42,7 @@ describe('ECSParser', () => {
                 { '@timestamp': 'invalid-date', 'host': { 'hostname': 'server3' } }
             ];
 
-            const result = ECSParser.parse(events);
+            const result = parseEvents(events);
 
             assert.strictEqual(result.length, 1);
             assert.strictEqual(result[0].host.hostname, 'server1');
@@ -54,7 +54,7 @@ describe('ECSParser', () => {
                 'host': { 'hostname': 'test-host' }
             }]);
 
-            const result = ECSParser.parse(json);
+            const result = parseEvents(json);
 
             assert.strictEqual(result.length, 1);
             assert.strictEqual(result[0].host.hostname, 'test-host');
@@ -67,7 +67,7 @@ describe('ECSParser', () => {
                 { '@timestamp': '2024-01-15T10:31:00.000Z', 'host': { 'hostname': 'host2' } }
             ]);
 
-            const result = ECSParser.parse(jsonArray);
+            const result = parseEvents(jsonArray);
 
             assert.strictEqual(result.length, 2);
             assert.strictEqual(result[0].host.hostname, 'host1');
@@ -83,7 +83,7 @@ describe('ECSParser', () => {
                 }
             }];
 
-            const result = ECSParser.parse(esFormat);
+            const result = parseEvents(esFormat);
 
             assert.strictEqual(result.length, 1);
             assert.strictEqual(result[0].id, 'abc123');
@@ -99,7 +99,7 @@ describe('ECSParser', () => {
                 }
             };
 
-            const result = ECSParser.parse([event]);
+            const result = parseEvents([event]);
 
             assert.strictEqual(result.length, 1);
             assert.strictEqual(result[0].host.hostname, 'server-01');
@@ -117,7 +117,7 @@ describe('ECSParser', () => {
                 'event': { 'category': ['network'] }
             };
 
-            const result = ECSParser.parse([event]);
+            const result = parseEvents([event]);
             assert.strictEqual(result[0].category, 'network');
         });
 
@@ -128,7 +128,7 @@ describe('ECSParser', () => {
                 'event': { 'category': ['authentication'] }
             };
 
-            const result = ECSParser.parse([event]);
+            const result = parseEvents([event]);
             assert.strictEqual(result[0].category, 'authentication');
         });
 
@@ -139,7 +139,7 @@ describe('ECSParser', () => {
                 'event': { 'category': ['process'] }
             };
 
-            const result = ECSParser.parse([event]);
+            const result = parseEvents([event]);
             assert.strictEqual(result[0].category, 'process');
         });
 
@@ -150,7 +150,7 @@ describe('ECSParser', () => {
                 'event': { 'category': ['intrusion_detection'] }
             };
 
-            const result = ECSParser.parse([event]);
+            const result = parseEvents([event]);
             assert.strictEqual(result[0].category, 'network');
         });
 
@@ -161,7 +161,7 @@ describe('ECSParser', () => {
                 'event': { 'category': ['custom_category'] }
             };
 
-            const result = ECSParser.parse([event]);
+            const result = parseEvents([event]);
             assert.strictEqual(result[0].category, 'other');
         });
 
@@ -178,7 +178,7 @@ describe('ECSParser', () => {
                 'network': { 'transport': 'tcp', 'direction': 'outbound' }
             };
 
-            const result = ECSParser.parse([event]);
+            const result = parseEvents([event]);
 
             assert.ok(result[0].connection);
             assert.strictEqual(result[0].connection.sourceIp, '192.168.1.100');
@@ -195,7 +195,7 @@ describe('ECSParser', () => {
                 'destination': { 'ip': '127.0.0.1', 'port': 8080 }
             };
 
-            const result = ECSParser.parse([event]);
+            const result = parseEvents([event]);
             assert.strictEqual(result[0].connection, null);
         });
 
@@ -207,7 +207,7 @@ describe('ECSParser', () => {
                 'destination': { 'ip': '192.168.1.100', 'port': 8080 }
             };
 
-            const result = ECSParser.parse([event]);
+            const result = parseEvents([event]);
             assert.strictEqual(result[0].connection, null);
         });
 
@@ -216,13 +216,13 @@ describe('ECSParser', () => {
     describe('buildHostRegistry()', () => {
 
         it('should build registry from parsed events', () => {
-            const events = ECSParser.parse([
+            const events = parseEvents([
                 { '@timestamp': '2024-01-15T10:30:00.000Z', 'host': { 'hostname': 'server-01', 'ip': '192.168.1.10' } },
                 { '@timestamp': '2024-01-15T10:31:00.000Z', 'host': { 'hostname': 'server-01', 'ip': '192.168.1.10' } },
                 { '@timestamp': '2024-01-15T10:32:00.000Z', 'host': { 'hostname': 'server-02', 'ip': '192.168.1.20' } }
             ]);
 
-            const registry = ECSParser.buildHostRegistry(events);
+            const registry = buildHostRegistry(events);
             const hostList = registry.getHostList();
 
             assert.strictEqual(hostList.length, 2);
@@ -231,11 +231,11 @@ describe('ECSParser', () => {
         });
 
         it('should resolve IPs to hostnames', () => {
-            const events = ECSParser.parse([
+            const events = parseEvents([
                 { '@timestamp': '2024-01-15T10:30:00.000Z', 'host': { 'hostname': 'web-server', 'ip': '10.0.0.100' } }
             ]);
 
-            const registry = ECSParser.buildHostRegistry(events);
+            const registry = buildHostRegistry(events);
 
             assert.strictEqual(registry.resolveIp('10.0.0.100'), 'web-server');
             assert.strictEqual(registry.resolveIp('10.0.0.200'), '10.0.0.200'); // Unknown IP returns itself
@@ -246,7 +246,7 @@ describe('ECSParser', () => {
     describe('identifyConnections()', () => {
 
         it('should identify cross-host connections', () => {
-            const events = ECSParser.parse([
+            const events = parseEvents([
                 {
                     '@timestamp': '2024-01-15T10:30:00.000Z',
                     'host': { 'hostname': 'client', 'ip': '192.168.1.100' },
@@ -259,8 +259,8 @@ describe('ECSParser', () => {
                 }
             ]);
 
-            const registry = ECSParser.buildHostRegistry(events);
-            const connections = ECSParser.identifyConnections(events, registry);
+            const registry = buildHostRegistry(events);
+            const connections = identifyConnections(events, registry);
 
             assert.strictEqual(connections.length, 1);
             assert.strictEqual(connections[0].sourceHost, 'client');
@@ -273,17 +273,17 @@ describe('ECSParser', () => {
 
         it('should extract nested values', () => {
             const obj = { a: { b: { c: 'value' } } };
-            assert.strictEqual(ECSParser.getNestedValue(obj, 'a.b.c'), 'value');
+            assert.strictEqual(getNestedValue(obj, 'a.b.c'), 'value');
         });
 
         it('should return default for missing paths', () => {
             const obj = { a: { b: 1 } };
-            assert.strictEqual(ECSParser.getNestedValue(obj, 'a.c.d', 'default'), 'default');
+            assert.strictEqual(getNestedValue(obj, 'a.c.d', 'default'), 'default');
         });
 
         it('should handle null objects gracefully', () => {
-            assert.strictEqual(ECSParser.getNestedValue(null, 'a.b'), null);
-            assert.strictEqual(ECSParser.getNestedValue(undefined, 'a.b', 'default'), 'default');
+            assert.strictEqual(getNestedValue(null, 'a.b'), null);
+            assert.strictEqual(getNestedValue(undefined, 'a.b', 'default'), 'default');
         });
 
     });
@@ -305,14 +305,14 @@ describe('Real ECS Data Tests', () => {
         });
 
         it('should parse Sysmon events with @timestamp', () => {
-            const parsed = ECSParser.parse(sysmonEvents.slice(0, 10));
+            const parsed = parseEvents(sysmonEvents.slice(0, 10));
             assert.ok(parsed.length > 0, 'Should parse at least some events');
             // Verify timestamps were parsed
             assert.ok(parsed[0].timestamp instanceof Date);
         });
 
         it('should extract event details from Sysmon events', () => {
-            const parsed = ECSParser.parse(sysmonEvents.slice(0, 10));
+            const parsed = parseEvents(sysmonEvents.slice(0, 10));
             // Sysmon events have winlog.computer_name, not host.hostname
             // Parser will set host to Unknown but event still parses
             assert.ok(parsed.length > 0);
@@ -335,18 +335,18 @@ describe('Real ECS Data Tests', () => {
         });
 
         it('should parse Suricata events', () => {
-            const parsed = ECSParser.parse(suricataEvents.slice(0, 10));
+            const parsed = parseEvents(suricataEvents.slice(0, 10));
             assert.ok(parsed.length > 0, 'Should parse at least some events');
         });
 
         it('should extract network connections from Suricata events', () => {
-            const parsed = ECSParser.parse(suricataEvents.slice(0, 20));
+            const parsed = parseEvents(suricataEvents.slice(0, 20));
             const withConnections = parsed.filter(e => e.connection !== null);
             assert.ok(withConnections.length > 0, 'Should have events with connection info');
         });
 
         it('should categorize Suricata events as network', () => {
-            const parsed = ECSParser.parse(suricataEvents.slice(0, 10));
+            const parsed = parseEvents(suricataEvents.slice(0, 10));
             const networkEvents = parsed.filter(e => e.category === 'network');
             assert.ok(networkEvents.length > 0, 'Should categorize as network events');
         });
@@ -395,7 +395,7 @@ describe('Real ECS Data Tests', () => {
         });
 
         it('should parse PowerShell events', () => {
-            const parsed = ECSParser.parse(psEvents.slice(0, 10));
+            const parsed = parseEvents(psEvents.slice(0, 10));
             assert.ok(parsed.length > 0, 'Should parse at least some events');
         });
 
@@ -414,7 +414,7 @@ describe('Real ECS Data Tests', () => {
         });
 
         it('should parse AWS CloudTrail events', () => {
-            const parsed = ECSParser.parse(awsEvents.slice(0, 10));
+            const parsed = parseEvents(awsEvents.slice(0, 10));
             assert.ok(parsed.length > 0, 'Should parse at least some events');
         });
 

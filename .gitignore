@@ -1,3 +1,5 @@
+# Run time persistence file(s)
+data/timeline.json
 
 # Logs
 logs

@@ -1,4 +1,4 @@
-import {parseEvents, buildHostRegistry, identifyConnections} from "./parser.js";
+import { parseEvents, buildHostRegistry, identifyConnections } from "./parser.js";
 import {
     initTimelineVisualization,
     renderTimelineVisualization,
@@ -10,7 +10,7 @@ import {
 } from "./timeline.js";
 import { formatDuration } from "./utils.js";
 import { renderEventDetailPanel } from "./detail-renderer.js";
-import {initWebSocketSync, isConnected, sendEventsToServer, sendClearToServer} from "./sync.js";
+import { initWebSocketSync, isConnected, sendEventsToServer, sendClearToServer } from "./sync.js";
 
 // State
 let currentEvents = [];
