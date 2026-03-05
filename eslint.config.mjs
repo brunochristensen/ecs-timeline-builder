@@ -1,18 +1,13 @@
 import globals from 'globals';
 
 export default [{
-    files: ["js/*.js", "server.js"],
+    files: ["js/*.js", "server.js", "server/*.js"],
     languageOptions: {
-        ecmaVersion: 2021,
+        ecmaVersion: 2022,
         globals: {
             ...globals.browser,
             ...globals.node,
-            d3: "readonly",
-            ECSParser: "readonly",
-            TimelineVis: "readonly",
-            TimelineSync: "readonly",
-            Utils: "readonly",
-            DetailRenderer: "readonly"
+            d3: "readonly"
         }
     },
     rules: {

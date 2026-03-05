@@ -568,6 +568,26 @@ body {
     font-size: 0.7rem;
 }
 
+.btn-delete {
+    width: 100%;
+    margin-top: 12px;
+    padding: 8px 12px;
+    background: transparent;
+    color: #ef4444;
+    border: 1px solid #ef4444;
+    border-radius: 4px;
+    font-family: 'Inter', sans-serif;
+    font-size: 0.8rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+}
+
+.btn-delete:hover {
+    background: #ef4444;
+    color: #fff;
+}
+
 /* ================================
    Timeline SVG Styles
    ================================ */

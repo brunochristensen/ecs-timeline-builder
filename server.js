@@ -1,61 +1,35 @@
-const express = require('express');
-const http = require('http');
-const WebSocket = require('ws');
-const path = require('path');
-const fs = require('fs');
+/**
+ * ECS Timeline Builder - Server
+ * Transport layer: Express HTTP + WebSocket message routing.
+ * Delegates business logic to EventStore and persistence to file I/O module.
+ */
+
+import express from 'express';
+import http from 'http';
+import WebSocket, { WebSocketServer } from 'ws';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import { EventStore } from './server/event-store.js';
+import { loadEvents, saveEvents } from './server/persistence.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app = express();
 const server = http.createServer(app);
-const wss = new WebSocket.Server({ server });
+const wss = new WebSocketServer({ server });
 
-// config
+// Config
 const PORT = process.env.PORT || 12345;
 const DATA_FILE = process.env.DATA_FILE || './data/timeline.json';
-const SAVE_INTERVAL = 30000; // Auto-save every 30 seconds if changed
+const SAVE_INTERVAL = 30000;
 
-// shared state
-let timelineEvents = [];
+// State
+const store = new EventStore();
 let isDirty = false;
 
 /**
- * Load timeline data from file
- */
-function loadData() {
-    try {
-        if (fs.existsSync(DATA_FILE)) {
-            const data = fs.readFileSync(DATA_FILE, 'utf8');
-            timelineEvents = JSON.parse(data);
-            console.log(`Loaded ${timelineEvents.length} events from ${DATA_FILE}`);
-        } else {
-            console.log('No existing data file, starting fresh');
-            timelineEvents = [];
-        }
-    } catch (error) {
-        console.error('Error loading data:', error.message);
-        timelineEvents = [];
-    }
-}
-
-/**
- * Save timeline data to file
- */
-function saveData() {
-    if (!isDirty) return;
-    try {
-        const dataDir = path.dirname(DATA_FILE);
-        if (!fs.existsSync(dataDir)) {
-            fs.mkdirSync(dataDir, { recursive: true });
-        }
-        fs.writeFileSync(DATA_FILE, JSON.stringify(timelineEvents, null, 2));
-        isDirty = false;
-        console.log(`Saved ${timelineEvents.length} events to ${DATA_FILE}`);
-    } catch (error) {
-        console.error('Error saving data:', error.message);
-    }
-}
-
-/**
- * Broadcast message to all connected clients except sender
+ * Broadcast message to all connected clients except sender.
  */
 function broadcast(message, excludeWs = null) {
     const msgString = JSON.stringify(message);
@@ -67,7 +41,7 @@ function broadcast(message, excludeWs = null) {
 }
 
 /**
- * Broadcast message to all connected clients
+ * Broadcast message to all connected clients.
  */
 function broadcastAll(message) {
     const msgString = JSON.stringify(message);
@@ -85,7 +59,7 @@ wss.on('connection', (ws) => {
     // Send current state to new client
     ws.send(JSON.stringify({
         type: 'SYNC',
-        events: timelineEvents
+        events: store.getAll()
     }));
 
     // Broadcast user count update
@@ -99,55 +73,42 @@ wss.on('connection', (ws) => {
             const message = JSON.parse(data);
             switch (message.type) {
                 case 'ADD_EVENTS': {
-                    // Add new events (with deduplication)
-                    const existingIds = new Set(timelineEvents.map(e => e._id || e.id));
-                    const newEvents = message.events.filter(e => {
-                        const id = e._id || e.id;
-                        return !existingIds.has(id);
-                    });
-
-                    if (newEvents.length > 0) {
-                        timelineEvents = [...timelineEvents, ...newEvents];
+                    const result = store.addEvents(message.events);
+                    if (result.added.length > 0) {
                         isDirty = true;
-
-                        // Broadcast to other clients
                         broadcast({
                             type: 'EVENTS_ADDED',
-                            events: newEvents
+                            events: result.added
                         }, ws);
+                    }
+                    ws.send(JSON.stringify({
+                        type: 'ADD_CONFIRMED',
+                        count: result.added.length,
+                        duplicates: result.duplicates
+                    }));
+                    break;
+                }
 
-                        // Confirm to sender
-                        ws.send(JSON.stringify({
-                            type: 'ADD_CONFIRMED',
-                            count: newEvents.length,
-                            duplicates: message.events.length - newEvents.length
-                        }));
-                    } else {
-                        ws.send(JSON.stringify({
-                            type: 'ADD_CONFIRMED',
-                            count: 0,
-                            duplicates: message.events.length
-                        }));
+                case 'DELETE_EVENT': {
+                    const removed = store.deleteEvent(message.eventId);
+                    if (removed) {
+                        isDirty = true;
+                        broadcastAll({ type: 'EVENT_DELETED', eventId: message.eventId });
                     }
                     break;
                 }
 
                 case 'CLEAR': {
-                    timelineEvents = [];
+                    store.clear();
                     isDirty = true;
-
-                    // Broadcast to all clients including sender
-                    broadcastAll({
-                        type: 'CLEARED'
-                    });
+                    broadcastAll({ type: 'CLEARED' });
                     break;
                 }
 
                 case 'REQUEST_SYNC': {
-                    // Client requesting full state
                     ws.send(JSON.stringify({
                         type: 'SYNC',
-                        events: timelineEvents
+                        events: store.getAll()
                     }));
                     break;
                 }
@@ -162,8 +123,6 @@ wss.on('connection', (ws) => {
 
     ws.on('close', () => {
         console.log('Client disconnected. Total clients:', wss.clients.size);
-
-        // Broadcast updated user count
         broadcastAll({
             type: 'USER_COUNT',
             count: wss.clients.size
@@ -183,36 +142,45 @@ app.get('/health', (req, res) => {
     res.json({
         status: 'ok',
         clients: wss.clients.size,
-        events: timelineEvents.length
+        events: store.length
     });
 });
 
-// API endpoint to get current state (for debugging/export)
+// API endpoint to get current state
 app.get('/api/events', (req, res) => {
-    res.json(timelineEvents);
+    res.json(store.getAll());
 });
 
 // Load data on startup
-loadData();
+store.load(loadEvents(DATA_FILE));
 
 // Auto-save interval
-setInterval(saveData, SAVE_INTERVAL);
+setInterval(() => {
+    if (isDirty) {
+        saveEvents(DATA_FILE, store.getAll());
+        isDirty = false;
+    }
+}, SAVE_INTERVAL);
 
 // Save on shutdown
 process.on('SIGINT', () => {
     console.log('\nShutting down...');
-    saveData();
+    if (isDirty) {
+        saveEvents(DATA_FILE, store.getAll());
+    }
     process.exit(0);
 });
 
 process.on('SIGTERM', () => {
     console.log('\nShutting down...');
-    saveData();
+    if (isDirty) {
+        saveEvents(DATA_FILE, store.getAll());
+    }
     process.exit(0);
 });
 
 // Start server
 server.listen(PORT, '0.0.0.0', () => {
-    console.log(`ECS Timeline Builder server running on http://0.0.0.0:${PORT}`);
+    console.log(`ECS Timeline Builder server running on http://localhost:${PORT}`);
     console.log(`Data file: ${path.resolve(DATA_FILE)}`);
 });

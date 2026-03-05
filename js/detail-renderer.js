@@ -55,7 +55,7 @@ function renderSection(title, data) {
 export function renderEventDetailPanel(event) {
     let html = '';
 
-    // Summary
+    // Summary + delete button
     html += `
             <div class="detail-section">
                 <div class="detail-section-title">Summary</div>
@@ -71,6 +71,7 @@ export function renderEventDetailPanel(event) {
                     <span class="detail-key">Category:</span>
                     <span class="detail-value">${event.category}</span>
                 </div>
+                <button id="delete-event-btn" class="btn-delete" data-event-id="${escapeHtml(String(event.id))}">Delete Event</button>
             </div>
         `;
 

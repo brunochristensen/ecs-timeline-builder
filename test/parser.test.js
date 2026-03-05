@@ -1,9 +1,11 @@
-const { describe, it, before } = require('node:test');
-const assert = require('node:assert');
-const fs = require('node:fs');
-const path = require('node:path');
+import { describe, it, before } from 'node:test';
+import assert from 'node:assert';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { parseEvents, buildHostRegistry, identifyConnections, getNestedValue } from '../js/parser.js';
 
-const { parseEvents, buildHostRegistry, identifyConnections, getNestedValue } = require("../js/parser");
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 /**
  * Helper to load test data files

@@ -3,42 +3,19 @@
  * Handles real-time synchronization with server
  */
 
+import { state } from './state.js';
+
 let ws = null;
 let reconnectAttempts = 0;
 let maxReconnectAttempts = 10;
 let reconnectDelay = 1000;
 let connectionActive = false;
 
-// Callbacks
-let onSync = null;
-let onEventsAdded = null;
-let onCleared = null;
-let onUserCount = null;
-let onConnectionChange = null;
-
 /**
  * Initializes the WebSocket connection for multi-user synchronization.
  * Automatically connects to the server and sets up reconnection logic.
- *
- * @param {Object} callbacks - Event handlers for sync operations
- * @param {Function} callbacks.onSync - Called with full event array on initial connect/reconnect
- * @param {Function} callbacks.onEventsAdded - Called when another client adds events
- * @param {Function} callbacks.onCleared - Called when any client clears the timeline
- * @param {Function} callbacks.onUserCount - Called with updated connected user count
- * @param {Function} callbacks.onConnectionChange - Called with boolean when connection state changes
  */
-export function initWebSocketSync(callbacks) {
-    onSync = callbacks.onSync || (() => {
-    });
-    onEventsAdded = callbacks.onEventsAdded || (() => {
-    });
-    onCleared = callbacks.onCleared || (() => {
-    });
-    onUserCount = callbacks.onUserCount || (() => {
-    });
-    onConnectionChange = callbacks.onConnectionChange || (() => {
-    });
-
+export function initWebSocketSync() {
     connect();
 }
 
@@ -47,7 +24,6 @@ export function initWebSocketSync(callbacks) {
  * Uses secure WebSocket (wss:) for HTTPS pages, standard (ws:) otherwise.
  */
 function connect() {
-    // Determine WebSocket URL based on current page location
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const wsUrl = `${protocol}//${window.location.host}`;
 
@@ -59,7 +35,7 @@ function connect() {
         console.log('WebSocket connected');
         connectionActive = true;
         reconnectAttempts = 0;
-        onConnectionChange(true);
+        state.setConnected(true);
     };
 
     ws.onmessage = (event) => {
@@ -74,7 +50,7 @@ function connect() {
     ws.onclose = () => {
         console.log('WebSocket disconnected');
         connectionActive = false;
-        onConnectionChange(false);
+        state.setConnected(false);
         attemptReconnect();
     };
 
@@ -106,39 +82,38 @@ function attemptReconnect() {
 }
 
 /**
- * Routes incoming WebSocket messages to appropriate callback handlers.
- * Handles SYNC, EVENTS_ADDED, ADD_CONFIRMED, CLEARED, and USER_COUNT message types.
+ * Routes incoming WebSocket messages to state manager methods.
  *
  * @param {Object} message - Parsed JSON message from server
  */
 function handleMessage(message) {
     switch (message.type) {
         case 'SYNC':
-            // Full state sync from server
             console.log(`Received sync: ${message.events.length} events`);
-            onSync(message.events);
+            state.setEvents(message.events);
             break;
 
         case 'EVENTS_ADDED':
-            // New events from another client
             console.log(`Events added by another user: ${message.events.length}`);
-            onEventsAdded(message.events);
+            state.addEvents(message.events);
             break;
 
         case 'ADD_CONFIRMED':
-            // Server confirmed our add
             console.log(`Add confirmed: ${message.count} added, ${message.duplicates} duplicates`);
             break;
 
+        case 'EVENT_DELETED':
+            console.log(`Event deleted: ${message.eventId}`);
+            state.deleteEvent(message.eventId);
+            break;
+
         case 'CLEARED':
-            // Timeline was cleared
             console.log('Timeline cleared');
-            onCleared();
+            state.clear();
             break;
 
         case 'USER_COUNT':
-            // Update user count
-            onUserCount(message.count);
+            state.setUserCount(message.count);
             break;
 
         default:
@@ -148,7 +123,6 @@ function handleMessage(message) {
 
 /**
  * Broadcasts new events to the server for distribution to other clients.
- * Events are deduplicated server-side before broadcasting.
  *
  * @param {Array} rawEvents - Array of raw ECS event objects to send
  * @returns {boolean} True if message was sent, false if not connected
@@ -168,8 +142,27 @@ export function sendEventsToServer(rawEvents) {
 }
 
 /**
+ * Requests the server to delete a single event by ID.
+ *
+ * @param {string} eventId - The ID of the event to delete
+ * @returns {boolean} True if message was sent, false if not connected
+ */
+export function sendDeleteToServer(eventId) {
+    if (!connectionActive || !ws) {
+        console.error('Not connected to server');
+        return false;
+    }
+
+    ws.send(JSON.stringify({
+        type: 'DELETE_EVENT',
+        eventId: eventId
+    }));
+
+    return true;
+}
+
+/**
  * Requests the server to clear the shared timeline state.
- * Server will broadcast CLEARED message to all connected clients.
  *
  * @returns {boolean} True if message was sent, false if not connected
  */

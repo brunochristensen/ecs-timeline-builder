@@ -1,1 +1,253 @@
-[]
+[
+  {
+    "_id": "LUlrE5sBRbeUnABXSg2t",
+    "winlog": {
+      "channel": "Microsoft-Windows-TaskScheduler/Operational",
+      "task": "Task registration updated",
+      "provider_name": "Microsoft-Windows-TaskScheduler",
+      "record_id": 523633,
+      "event_id": "140",
+      "user": {
+        "domain": "NT AUTHORITY",
+        "name": "SYSTEM",
+        "type": "User",
+        "identifier": "S-1-5-18"
+      },
+      "opcode": "Info",
+      "provider_guid": "{de7b24ea-73c8-4a09-985d-5bdadcfa9017}",
+      "process": {
+        "pid": 1908,
+        "thread": {
+          "id": 5312
+        }
+      },
+      "api": "wineventlog",
+      "computer_name": "afb-w10-04-5.afb.lan",
+      "event_data": {
+        "UserName": "S-1-5-18",
+        "TaskName": "\\Microsoft\\Windows\\UpdateOrchestrator\\Schedule Wake To Work"
+      }
+    },
+    "tags": [
+      "beats_input_codec_plain_applied",
+      "winlogbeat"
+    ],
+    "ecs": {
+      "version": "8.4.0"
+    },
+    "log": {
+      "transport_delay": 36.866775035858154,
+      "logstash_time": 0.011233091354370117,
+      "level": "information"
+    },
+    "event": {
+      "ingested": "2025-12-12T16:35:57.201775Z",
+      "module": "winlogbeat",
+      "kind": "event",
+      "created": "2025-12-12T16:35:20.335Z",
+      "code": "140",
+      "provider": "Microsoft-Windows-TaskScheduler",
+      "dataset": "winlogbeat.event",
+      "action": "Task registration updated",
+      "original": "User \"S-1-5-18\"  updated Task Scheduler task \"\\Microsoft\\Windows\\UpdateOrchestrator\\Schedule Wake To Work\""
+    },
+    "user": {
+      "name": "S-1-5-18"
+    },
+    "related": {
+      "event": {},
+      "user": [
+        "S-1-5-18"
+      ],
+      "hosts": [
+        "afb-w10-04-5.afb.lan",
+        "afb-w10-04-5"
+      ],
+      "file": {},
+      "process": {},
+      "hostname": [
+        "afb-w10-04-5.afb.lan",
+        "afb-w10-04-5"
+      ],
+      "ip": [
+        "28.158.100.54",
+        "10.10.10.54"
+      ]
+    },
+    "agent": {
+      "id": "e0194f29-ed00-4421-9854-dc8ac1766a41",
+      "ephemeral_id": "c58f7e99-4b61-4855-a281-76f8f83e2e17",
+      "name": "afb-w10-04-5",
+      "version": "7.15.2",
+      "hostname": "afb-w10-04-5",
+      "type": "winlogbeat"
+    },
+    "@timestamp": "2025-12-12T16:35:18.924Z",
+    "message": "User \"S-1-5-18\"  updated Task Scheduler task \"\\Microsoft\\Windows\\UpdateOrchestrator\\Schedule Wake To Work\"",
+    "@version": "1",
+    "host": {
+      "id": "1b7e809e-556d-482a-bb9b-504106f724f7",
+      "name": "afb-w10-04-5.afb.lan",
+      "mac": [
+        "00:50:56:a9:ee:2b",
+        "00:50:56:a9:83:77"
+      ],
+      "hostname": "afb-w10-04-5",
+      "architecture": "x86_64",
+      "os": {
+        "family": "windows",
+        "kernel": "10.0.19041.264 (WinBuild.160101.0800)",
+        "build": "19041.264",
+        "platform": "windows",
+        "name": "Windows 10 Enterprise",
+        "version": "10.0",
+        "type": "windows"
+      },
+      "ip": [
+        "28.158.100.54",
+        "10.10.10.54"
+      ],
+      "address": [
+        "28.158.100.54",
+        "10.10.10.54"
+      ]
+    }
+  },
+  {
+    "_id": "dBYVnpABFW8KFO7tH5wZ",
+    "arkime": {
+      "query": "https://arkime.dok/sessions?expression=communityId%3D%3D%221:aKnpEPey4mZTXzSfOPWHncZHUnk%3D%22&stopTime=1720642702&startTime=1720635502"
+    },
+    "event": {
+      "ingested": "2024-07-10T19:18:22.699754Z",
+      "reason": "match",
+      "action": "pass",
+      "original": "<134>Jul 10 19:18:22 filterlog[24434]: 38,,,1000005813,vmx1,match,pass,out,4,0x0,,64,51435,0,none,17,udp,79,10.0.135.2,10.0.133.15,46072,53,59",
+      "dataset": "syslog",
+      "module": "syslog",
+      "id": [
+        "1000005813"
+      ]
+    },
+    "destination": {
+      "address": "10.0.133.15",
+      "port": "53",
+      "ip": "10.0.133.15",
+      "hostname": "controller.dok"
+    },
+    "client": {
+      "address": "10.0.135.2",
+      "port": "46072",
+      "ip": "10.0.135.2"
+    },
+    "service": {
+      "type": "system"
+    },
+    "ecs": {
+      "version": "8.6.0"
+    },
+    "process": {
+      "is_gtfobin": false,
+      "executable": "filterlog",
+      "is_lolbin": false,
+      "name": "filterlog",
+      "pid": 24434
+    },
+    "firewall": {
+      "interface": "vmx1",
+      "rule": {
+        "number": "38"
+      }
+    },
+    "message": "38,,,1000005813,vmx1,match,pass,out,4,0x0,,64,51435,0,none,17,udp,79,10.0.135.2,10.0.133.15,46072,53,59",
+    "related": {
+      "hosts": [
+        "controller.dok"
+      ],
+      "port": [
+        "46072",
+        "53"
+      ],
+      "event": {
+        "id": [
+          "1000005813"
+        ]
+      },
+      "ip": [
+        "10.0.135.2",
+        "10.0.133.15"
+      ],
+      "hostname": [
+        "controller.dok"
+      ],
+      "file": {
+        "path": [
+          "filterlog"
+        ],
+        "name": [
+          "filterlog"
+        ]
+      },
+      "process": {
+        "name": [
+          "filterlog"
+        ],
+        "pid": [
+          24434
+        ]
+      }
+    },
+    "user": {},
+    "@version": "1",
+    "host": {},
+    "server": {
+      "address": "10.0.133.15",
+      "port": "53",
+      "ip": "10.0.133.15"
+    },
+    "source": {
+      "address": "10.0.135.2",
+      "port": "46072",
+      "ip": "10.0.135.2"
+    },
+    "temp": {},
+    "tags": [
+      "syslog",
+      "pfsense"
+    ],
+    "network": {
+      "type": "ipv4",
+      "ip_bytes": "79",
+      "community_id": "1:aKnpEPey4mZTXzSfOPWHncZHUnk=",
+      "direction": "egress",
+      "bytes": "59",
+      "transport": "udp"
+    },
+    "log": {
+      "logstash_time": 0.007458925247192383,
+      "transport_delay": 0.699753999710083,
+      "syslog": {
+        "procid": "filterlog",
+        "severity": {
+          "code": 6,
+          "name": "Informational"
+        },
+        "facility": {
+          "code": 16,
+          "name": "local0"
+        },
+        "appname": "filterlog",
+        "priority": 134
+      }
+    },
+    "observer": {
+      "ip": "10.0.133.42",
+      "egress": {
+        "interface": {
+          "name": "vmx1"
+        }
+      }
+    },
+    "@timestamp": "2024-07-10T19:18:22.000Z"
+  }
+]

@@ -148,6 +148,25 @@ function extractHostIdentifier(event) {
 }
 
 /**
+ * Maps ECS event.category values to timeline display categories.
+ * Exported for reuse in filtering and styling logic.
+ */
+export const CATEGORY_MAP = {
+    'network': 'network',
+    'file': 'file',
+    'process': 'process',
+    'authentication': 'authentication',
+    'session': 'authentication',
+    'registry': 'registry',
+    'iam': 'authentication',
+    'intrusion_detection': 'network',
+    'malware': 'process',
+    'package': 'file',
+    'web': 'network',
+    'database': 'network'
+};
+
+/**
  * Extract event category for filtering and styling
  */
 function extractCategory(event) {
@@ -156,26 +175,8 @@ function extractCategory(event) {
         'event.type'
     ]);
 
-    // Handle array categories
     const categoryValue = Array.isArray(category) ? category[0] : category;
-
-    // Map to our standard categories
-    const categoryMap = {
-        'network': 'network',
-        'file': 'file',
-        'process': 'process',
-        'authentication': 'authentication',
-        'session': 'authentication',
-        'registry': 'registry',
-        'iam': 'authentication',
-        'intrusion_detection': 'network',
-        'malware': 'process',
-        'package': 'file',
-        'web': 'network',
-        'database': 'network'
-    };
-
-    return categoryMap[categoryValue] || 'other';
+    return CATEGORY_MAP[categoryValue] || 'other';
 }
 
 /**
@@ -280,205 +281,165 @@ function extractSummary(event) {
 }
 
 /**
- * Extract key fields for the detail panel
- * Organized by ECS field sets
+ * ECS field map for the detail panel.
+ * Each section has a key, optional trigger paths (section is skipped if none match),
+ * and a fields object mapping display keys to ECS dot-notation paths.
+ */
+const ECS_DETAIL_SECTIONS = [
+    {
+        key: 'event',
+        fields: {
+            action: 'event.action', category: 'event.category', type: 'event.type',
+            outcome: 'event.outcome', reason: 'event.reason', code: 'event.code',
+            provider: 'event.provider', dataset: 'event.dataset', module: 'event.module',
+            kind: 'event.kind', severity: 'event.severity', riskScore: 'event.risk_score'
+        }
+    },
+    {
+        key: 'host',
+        fields: {
+            hostname: 'host.hostname', name: 'host.name', id: 'host.id',
+            ip: 'host.ip', mac: 'host.mac', os: 'host.os.name',
+            osVersion: 'host.os.version', osFamily: 'host.os.family',
+            osPlatform: 'host.os.platform', architecture: 'host.architecture'
+        }
+    },
+    {
+        key: 'network',
+        trigger: ['source.ip', 'destination.ip'],
+        fields: {
+            sourceIp: 'source.ip', sourcePort: 'source.port',
+            sourceDomain: 'source.domain', sourceBytes: 'source.bytes',
+            sourcePackets: 'source.packets', sourceGeoCountry: 'source.geo.country_name',
+            sourceGeoCity: 'source.geo.city_name',
+            destIp: 'destination.ip', destPort: 'destination.port',
+            destDomain: 'destination.domain', destBytes: 'destination.bytes',
+            destPackets: 'destination.packets', destGeoCountry: 'destination.geo.country_name',
+            destGeoCity: 'destination.geo.city_name',
+            protocol: 'network.protocol', transport: 'network.transport',
+            type: 'network.type', direction: 'network.direction',
+            communityId: 'network.community_id', bytes: 'network.bytes',
+            packets: 'network.packets', application: 'network.application'
+        }
+    },
+    {
+        key: 'process',
+        trigger: ['process.name', 'process.pid'],
+        fields: {
+            name: 'process.name', pid: 'process.pid', executable: 'process.executable',
+            commandLine: 'process.command_line', args: 'process.args',
+            workingDirectory: 'process.working_directory', entityId: 'process.entity_id',
+            exitCode: 'process.exit_code',
+            parentName: 'process.parent.name', parentPid: 'process.parent.pid',
+            parentExecutable: 'process.parent.executable',
+            parentCommandLine: 'process.parent.command_line',
+            hashMd5: 'process.hash.md5', hashSha1: 'process.hash.sha1',
+            hashSha256: 'process.hash.sha256'
+        }
+    },
+    {
+        key: 'file',
+        trigger: ['file.path', 'file.name'],
+        fields: {
+            path: 'file.path', name: 'file.name', directory: 'file.directory',
+            extension: 'file.extension', mimeType: 'file.mime_type', size: 'file.size',
+            targetPath: 'file.target_path', type: 'file.type',
+            hashMd5: 'file.hash.md5', hashSha1: 'file.hash.sha1',
+            hashSha256: 'file.hash.sha256'
+        }
+    },
+    {
+        key: 'user',
+        trigger: ['user.name', 'user.id'],
+        fields: {
+            name: 'user.name', fullName: 'user.full_name', domain: 'user.domain',
+            id: 'user.id', email: 'user.email', roles: 'user.roles',
+            targetName: 'user.target.name', targetDomain: 'user.target.domain',
+            effectiveName: 'user.effective.name'
+        }
+    },
+    {
+        key: 'dns',
+        trigger: ['dns.question.name'],
+        fields: {
+            questionName: 'dns.question.name', questionType: 'dns.question.type',
+            questionClass: 'dns.question.class', responseCode: 'dns.response_code',
+            resolvedIp: 'dns.resolved_ip', answers: 'dns.answers'
+        }
+    },
+    {
+        key: 'url',
+        trigger: ['url.full', 'url.domain'],
+        fields: {
+            full: 'url.full', domain: 'url.domain', path: 'url.path',
+            query: 'url.query', scheme: 'url.scheme', port: 'url.port'
+        }
+    },
+    {
+        key: 'http',
+        trigger: ['http.request.method', 'http.response.status_code'],
+        fields: {
+            method: 'http.request.method', statusCode: 'http.response.status_code',
+            requestBodyContent: 'http.request.body.content',
+            responseBodyContent: 'http.response.body.content',
+            userAgent: 'user_agent.original'
+        }
+    },
+    {
+        key: 'registry',
+        trigger: ['registry.path', 'registry.key'],
+        fields: {
+            path: 'registry.path', key: 'registry.key', value: 'registry.value',
+            dataStrings: 'registry.data.strings', dataType: 'registry.data.type',
+            hive: 'registry.hive'
+        }
+    },
+    {
+        key: 'threat',
+        trigger: ['threat.indicator', 'threat.technique.name'],
+        fields: {
+            framework: 'threat.framework', tacticName: 'threat.tactic.name',
+            tacticId: 'threat.tactic.id', techniqueName: 'threat.technique.name',
+            techniqueId: 'threat.technique.id', indicator: 'threat.indicator'
+        }
+    },
+    {
+        key: 'observer',
+        trigger: ['observer.name', 'observer.type'],
+        fields: {
+            name: 'observer.name', hostname: 'observer.hostname', ip: 'observer.ip',
+            type: 'observer.type', vendor: 'observer.vendor',
+            product: 'observer.product', version: 'observer.version'
+        }
+    },
+    {
+        key: 'rule',
+        trigger: ['rule.name', 'rule.id'],
+        fields: {
+            name: 'rule.name', id: 'rule.id', category: 'rule.category',
+            description: 'rule.description', ruleset: 'rule.ruleset',
+            reference: 'rule.reference'
+        }
+    }
+];
+
+/**
+ * Extract key fields for the detail panel.
+ * Driven by ECS_DETAIL_SECTIONS config — each section is included only if
+ * its trigger fields exist (or unconditionally if no trigger is defined).
  */
 function extractDetails(event) {
     const details = {};
 
-    // ECS event.* - Event metadata
-    details.event = {
-        action: getNestedValue(event, 'event.action'),
-        category: getNestedValue(event, 'event.category'),
-        type: getNestedValue(event, 'event.type'),
-        outcome: getNestedValue(event, 'event.outcome'),
-        reason: getNestedValue(event, 'event.reason'),
-        code: getNestedValue(event, 'event.code'),
-        provider: getNestedValue(event, 'event.provider'),
-        dataset: getNestedValue(event, 'event.dataset'),
-        module: getNestedValue(event, 'event.module'),
-        kind: getNestedValue(event, 'event.kind'),
-        severity: getNestedValue(event, 'event.severity'),
-        riskScore: getNestedValue(event, 'event.risk_score')
-    };
-
-    // ECS host.* - Host information
-    details.host = {
-        hostname: getNestedValue(event, 'host.hostname'),
-        name: getNestedValue(event, 'host.name'),
-        id: getNestedValue(event, 'host.id'),
-        ip: getNestedValue(event, 'host.ip'),
-        mac: getNestedValue(event, 'host.mac'),
-        os: getNestedValue(event, 'host.os.name'),
-        osVersion: getNestedValue(event, 'host.os.version'),
-        osFamily: getNestedValue(event, 'host.os.family'),
-        osPlatform: getNestedValue(event, 'host.os.platform'),
-        architecture: getNestedValue(event, 'host.architecture')
-    };
-
-    // ECS source.* and destination.* - Network endpoints
-    if (getNestedValue(event, 'source.ip') || getNestedValue(event, 'destination.ip')) {
-        details.network = {
-            sourceIp: getNestedValue(event, 'source.ip'),
-            sourcePort: getNestedValue(event, 'source.port'),
-            sourceDomain: getNestedValue(event, 'source.domain'),
-            sourceBytes: getNestedValue(event, 'source.bytes'),
-            sourcePackets: getNestedValue(event, 'source.packets'),
-            sourceGeoCountry: getNestedValue(event, 'source.geo.country_name'),
-            sourceGeoCity: getNestedValue(event, 'source.geo.city_name'),
-            destIp: getNestedValue(event, 'destination.ip'),
-            destPort: getNestedValue(event, 'destination.port'),
-            destDomain: getNestedValue(event, 'destination.domain'),
-            destBytes: getNestedValue(event, 'destination.bytes'),
-            destPackets: getNestedValue(event, 'destination.packets'),
-            destGeoCountry: getNestedValue(event, 'destination.geo.country_name'),
-            destGeoCity: getNestedValue(event, 'destination.geo.city_name'),
-            protocol: getNestedValue(event, 'network.protocol'),
-            transport: getNestedValue(event, 'network.transport'),
-            type: getNestedValue(event, 'network.type'),
-            direction: getNestedValue(event, 'network.direction'),
-            communityId: getNestedValue(event, 'network.community_id'),
-            bytes: getNestedValue(event, 'network.bytes'),
-            packets: getNestedValue(event, 'network.packets'),
-            application: getNestedValue(event, 'network.application')
-        };
-    }
-
-    // ECS process.* - Process information
-    if (getNestedValue(event, 'process.name') || getNestedValue(event, 'process.pid')) {
-        details.process = {
-            name: getNestedValue(event, 'process.name'),
-            pid: getNestedValue(event, 'process.pid'),
-            executable: getNestedValue(event, 'process.executable'),
-            commandLine: getNestedValue(event, 'process.command_line'),
-            args: getNestedValue(event, 'process.args'),
-            workingDirectory: getNestedValue(event, 'process.working_directory'),
-            entityId: getNestedValue(event, 'process.entity_id'),
-            exitCode: getNestedValue(event, 'process.exit_code'),
-            parentName: getNestedValue(event, 'process.parent.name'),
-            parentPid: getNestedValue(event, 'process.parent.pid'),
-            parentExecutable: getNestedValue(event, 'process.parent.executable'),
-            parentCommandLine: getNestedValue(event, 'process.parent.command_line'),
-            hashMd5: getNestedValue(event, 'process.hash.md5'),
-            hashSha1: getNestedValue(event, 'process.hash.sha1'),
-            hashSha256: getNestedValue(event, 'process.hash.sha256')
-        };
-    }
-
-    // ECS file.* - File information
-    if (getNestedValue(event, 'file.path') || getNestedValue(event, 'file.name')) {
-        details.file = {
-            path: getNestedValue(event, 'file.path'),
-            name: getNestedValue(event, 'file.name'),
-            directory: getNestedValue(event, 'file.directory'),
-            extension: getNestedValue(event, 'file.extension'),
-            mimeType: getNestedValue(event, 'file.mime_type'),
-            size: getNestedValue(event, 'file.size'),
-            targetPath: getNestedValue(event, 'file.target_path'),
-            type: getNestedValue(event, 'file.type'),
-            hashMd5: getNestedValue(event, 'file.hash.md5'),
-            hashSha1: getNestedValue(event, 'file.hash.sha1'),
-            hashSha256: getNestedValue(event, 'file.hash.sha256')
-        };
-    }
-
-    // ECS user.* - User information
-    if (getNestedValue(event, 'user.name') || getNestedValue(event, 'user.id')) {
-        details.user = {
-            name: getNestedValue(event, 'user.name'),
-            fullName: getNestedValue(event, 'user.full_name'),
-            domain: getNestedValue(event, 'user.domain'),
-            id: getNestedValue(event, 'user.id'),
-            email: getNestedValue(event, 'user.email'),
-            roles: getNestedValue(event, 'user.roles'),
-            targetName: getNestedValue(event, 'user.target.name'),
-            targetDomain: getNestedValue(event, 'user.target.domain'),
-            effectiveName: getNestedValue(event, 'user.effective.name')
-        };
-    }
-
-    // ECS dns.* - DNS query information
-    if (getNestedValue(event, 'dns.question.name')) {
-        details.dns = {
-            questionName: getNestedValue(event, 'dns.question.name'),
-            questionType: getNestedValue(event, 'dns.question.type'),
-            questionClass: getNestedValue(event, 'dns.question.class'),
-            responseCode: getNestedValue(event, 'dns.response_code'),
-            resolvedIp: getNestedValue(event, 'dns.resolved_ip'),
-            answers: getNestedValue(event, 'dns.answers')
-        };
-    }
-
-    // ECS url.* - URL information
-    if (getNestedValue(event, 'url.full') || getNestedValue(event, 'url.domain')) {
-        details.url = {
-            full: getNestedValue(event, 'url.full'),
-            domain: getNestedValue(event, 'url.domain'),
-            path: getNestedValue(event, 'url.path'),
-            query: getNestedValue(event, 'url.query'),
-            scheme: getNestedValue(event, 'url.scheme'),
-            port: getNestedValue(event, 'url.port')
-        };
-    }
-
-    // ECS http.* - HTTP information
-    if (getNestedValue(event, 'http.request.method') || getNestedValue(event, 'http.response.status_code')) {
-        details.http = {
-            method: getNestedValue(event, 'http.request.method'),
-            statusCode: getNestedValue(event, 'http.response.status_code'),
-            requestBodyContent: getNestedValue(event, 'http.request.body.content'),
-            responseBodyContent: getNestedValue(event, 'http.response.body.content'),
-            userAgent: getNestedValue(event, 'user_agent.original')
-        };
-    }
-
-    // ECS registry.* - Windows registry information
-    if (getNestedValue(event, 'registry.path') || getNestedValue(event, 'registry.key')) {
-        details.registry = {
-            path: getNestedValue(event, 'registry.path'),
-            key: getNestedValue(event, 'registry.key'),
-            value: getNestedValue(event, 'registry.value'),
-            dataStrings: getNestedValue(event, 'registry.data.strings'),
-            dataType: getNestedValue(event, 'registry.data.type'),
-            hive: getNestedValue(event, 'registry.hive')
-        };
-    }
-
-    // ECS threat.* - Threat intelligence
-    if (getNestedValue(event, 'threat.indicator') || getNestedValue(event, 'threat.technique.name')) {
-        details.threat = {
-            framework: getNestedValue(event, 'threat.framework'),
-            tacticName: getNestedValue(event, 'threat.tactic.name'),
-            tacticId: getNestedValue(event, 'threat.tactic.id'),
-            techniqueName: getNestedValue(event, 'threat.technique.name'),
-            techniqueId: getNestedValue(event, 'threat.technique.id'),
-            indicator: getNestedValue(event, 'threat.indicator')
-        };
-    }
-
-    // ECS observer.* - Observer/sensor information (firewalls, IDS, etc.)
-    if (getNestedValue(event, 'observer.name') || getNestedValue(event, 'observer.type')) {
-        details.observer = {
-            name: getNestedValue(event, 'observer.name'),
-            hostname: getNestedValue(event, 'observer.hostname'),
-            ip: getNestedValue(event, 'observer.ip'),
-            type: getNestedValue(event, 'observer.type'),
-            vendor: getNestedValue(event, 'observer.vendor'),
-            product: getNestedValue(event, 'observer.product'),
-            version: getNestedValue(event, 'observer.version')
-        };
-    }
-
-    // ECS rule.* - Detection rule information
-    if (getNestedValue(event, 'rule.name') || getNestedValue(event, 'rule.id')) {
-        details.rule = {
-            name: getNestedValue(event, 'rule.name'),
-            id: getNestedValue(event, 'rule.id'),
-            category: getNestedValue(event, 'rule.category'),
-            description: getNestedValue(event, 'rule.description'),
-            ruleset: getNestedValue(event, 'rule.ruleset'),
-            reference: getNestedValue(event, 'rule.reference')
-        };
+    for (const section of ECS_DETAIL_SECTIONS) {
+        if (section.trigger && !section.trigger.some(p => getNestedValue(event, p))) {
+            continue;
+        }
+        const data = {};
+        for (const [key, path] of Object.entries(section.fields)) {
+            data[key] = getNestedValue(event, path);
+        }
+        details[section.key] = data;
     }
 
     return details;
