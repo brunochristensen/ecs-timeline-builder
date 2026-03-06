@@ -249,5 +249,712 @@
       }
     },
     "@timestamp": "2024-07-10T19:18:22.000Z"
+  },
+  {
+    "_id": "vBYVnpABFW8KFO7tOpxb",
+    "arkime": {
+      "query": "https://arkime.dok/sessions?expression=communityId%3D%3D%221:%2Fdi%2BXGiWcXQ4AO8Qc9ve7%2F2kuP8%3D%22&stopTime=1720642709&startTime=1720635509"
+    },
+    "event": {
+      "ingested": "2024-07-10T19:18:29.700829Z",
+      "reason": "match",
+      "action": "pass",
+      "original": "<134>Jul 10 19:18:29 filterlog[24434]: 39,,,1000005911,vmx2,match,pass,out,4,0x0,,64,33329,0,none,17,udp,80,192.168.10.250,192.168.17.10,54262,53,60",
+      "dataset": "syslog",
+      "module": "syslog",
+      "id": [
+        "1000005911"
+      ]
+    },
+    "destination": {
+      "address": "192.168.17.10",
+      "port": "53",
+      "ip": "192.168.17.10",
+      "hostname": "DC7-01.AREA17.RANGE"
+    },
+    "client": {
+      "address": "192.168.10.250",
+      "port": "54262",
+      "ip": "192.168.10.250"
+    },
+    "service": {
+      "type": "system"
+    },
+    "ecs": {
+      "version": "8.6.0"
+    },
+    "process": {
+      "is_gtfobin": false,
+      "executable": "filterlog",
+      "is_lolbin": false,
+      "name": "filterlog",
+      "pid": 24434
+    },
+    "firewall": {
+      "interface": "vmx2",
+      "rule": {
+        "number": "39"
+      }
+    },
+    "message": "39,,,1000005911,vmx2,match,pass,out,4,0x0,,64,33329,0,none,17,udp,80,192.168.10.250,192.168.17.10,54262,53,60",
+    "related": {
+      "hosts": [
+        "DC7-01.AREA17.RANGE"
+      ],
+      "port": [
+        "54262",
+        "53"
+      ],
+      "event": {
+        "id": [
+          "1000005911"
+        ]
+      },
+      "ip": [
+        "192.168.10.250",
+        "192.168.17.10"
+      ],
+      "hostname": [
+        "DC7-01.AREA17.RANGE"
+      ],
+      "file": {
+        "path": [
+          "filterlog"
+        ],
+        "name": [
+          "filterlog"
+        ]
+      },
+      "process": {
+        "name": [
+          "filterlog"
+        ],
+        "pid": [
+          24434
+        ]
+      }
+    },
+    "user": {},
+    "@version": "1",
+    "host": {},
+    "server": {
+      "address": "192.168.17.10",
+      "port": "53",
+      "ip": "192.168.17.10"
+    },
+    "source": {
+      "address": "192.168.10.250",
+      "port": "54262",
+      "ip": "192.168.10.250"
+    },
+    "temp": {},
+    "tags": [
+      "syslog",
+      "pfsense"
+    ],
+    "network": {
+      "type": "ipv4",
+      "ip_bytes": "80",
+      "community_id": "1:/di+XGiWcXQ4AO8Qc9ve7/2kuP8=",
+      "direction": "egress",
+      "bytes": "60",
+      "transport": "udp"
+    },
+    "log": {
+      "logstash_time": 0.012544870376586914,
+      "transport_delay": 0.700829029083252,
+      "syslog": {
+        "procid": "filterlog",
+        "severity": {
+          "code": 6,
+          "name": "Informational"
+        },
+        "facility": {
+          "code": 16,
+          "name": "local0"
+        },
+        "appname": "filterlog",
+        "priority": 134
+      }
+    },
+    "observer": {
+      "ip": "10.0.133.42",
+      "egress": {
+        "interface": {
+          "name": "vmx2"
+        }
+      }
+    },
+    "@timestamp": "2024-07-10T19:18:29.000Z"
+  },
+  {
+    "_id": "KCoVnpABZbfPX2zMXSLk",
+    "arkime": {
+      "query": "https://arkime.dok/sessions?expression=communityId%3D%3D%221:KpGVh%2F5xYIgm8mBoYXs5ElsVrFE%3D%22&stopTime=1720642718&startTime=1720635518"
+    },
+    "event": {
+      "ingested": "2024-07-10T19:18:38.794812Z",
+      "reason": "match",
+      "action": "pass",
+      "original": "<134>Jul 10 19:18:38 filterlog[24434]: 38,,,1000005813,vmx1,match,pass,out,4,0x0,,64,57489,0,none,17,udp,64,10.0.135.2,10.0.133.15,57716,53,44",
+      "dataset": "syslog",
+      "module": "syslog",
+      "id": [
+        "1000005813"
+      ]
+    },
+    "destination": {
+      "address": "10.0.133.15",
+      "port": "53",
+      "ip": "10.0.133.15",
+      "hostname": "controller.dok"
+    },
+    "client": {
+      "address": "10.0.135.2",
+      "port": "57716",
+      "ip": "10.0.135.2"
+    },
+    "service": {
+      "type": "system"
+    },
+    "ecs": {
+      "version": "8.6.0"
+    },
+    "process": {
+      "is_gtfobin": false,
+      "executable": "filterlog",
+      "is_lolbin": false,
+      "name": "filterlog",
+      "pid": 24434
+    },
+    "firewall": {
+      "interface": "vmx1",
+      "rule": {
+        "number": "38"
+      }
+    },
+    "message": "38,,,1000005813,vmx1,match,pass,out,4,0x0,,64,57489,0,none,17,udp,64,10.0.135.2,10.0.133.15,57716,53,44",
+    "related": {
+      "hosts": [
+        "controller.dok"
+      ],
+      "port": [
+        "57716",
+        "53"
+      ],
+      "event": {
+        "id": [
+          "1000005813"
+        ]
+      },
+      "ip": [
+        "10.0.135.2",
+        "10.0.133.15"
+      ],
+      "hostname": [
+        "controller.dok"
+      ],
+      "file": {
+        "path": [
+          "filterlog"
+        ],
+        "name": [
+          "filterlog"
+        ]
+      },
+      "process": {
+        "name": [
+          "filterlog"
+        ],
+        "pid": [
+          24434
+        ]
+      }
+    },
+    "user": {},
+    "@version": "1",
+    "host": {},
+    "server": {
+      "address": "10.0.133.15",
+      "port": "53",
+      "ip": "10.0.133.15"
+    },
+    "source": {
+      "address": "10.0.135.2",
+      "port": "57716",
+      "ip": "10.0.135.2"
+    },
+    "temp": {},
+    "tags": [
+      "syslog",
+      "pfsense"
+    ],
+    "network": {
+      "type": "ipv4",
+      "ip_bytes": "64",
+      "community_id": "1:KpGVh/5xYIgm8mBoYXs5ElsVrFE=",
+      "direction": "egress",
+      "bytes": "44",
+      "transport": "udp"
+    },
+    "log": {
+      "logstash_time": 0.013485193252563477,
+      "transport_delay": 0.7948119640350342,
+      "syslog": {
+        "procid": "filterlog",
+        "severity": {
+          "code": 6,
+          "name": "Informational"
+        },
+        "facility": {
+          "code": 16,
+          "name": "local0"
+        },
+        "appname": "filterlog",
+        "priority": 134
+      }
+    },
+    "observer": {
+      "ip": "10.0.133.42",
+      "egress": {
+        "interface": {
+          "name": "vmx1"
+        }
+      }
+    },
+    "@timestamp": "2024-07-10T19:18:38.000Z"
+  },
+  {
+    "_id": "CsLRm5ABXdjZeLinTP4_",
+    "winlog": {
+      "api": "wineventlog",
+      "provider_name": "Microsoft-Windows-Sysmon",
+      "provider_guid": "{5770385f-c22a-43e0-bf4c-06f5698ffbd9}",
+      "record_id": 2018,
+      "user": {
+        "type": "User",
+        "domain": "NT AUTHORITY",
+        "identifier": "S-1-5-18",
+        "name": "SYSTEM"
+      },
+      "task": "File created (rule: FileCreate)",
+      "event_data": {
+        "CreationUtcTime": "2024-07-10 08:43:54.067",
+        "ProcessId": "3572",
+        "ProcessGuid": "{432a28b0-4989-668e-0701-000000000f00}",
+        "TargetFilename": "C:\\Users\\S9589~1.COL\\AppData\\Local\\Temp\\_MEI35722\\mpl-data\\fonts\\ttf\\STIXSizOneSymReg.ttf",
+        "Image": "C:\\Skyview Client\\skyview_client.exe",
+        "UtcTime": "2024-07-10 08:43:54.067",
+        "RuleName": "-"
+      },
+      "opcode": "Info",
+      "version": 2,
+      "channel": "Microsoft-Windows-Sysmon/Operational",
+      "process": {
+        "thread": {
+          "id": 4728
+        },
+        "pid": 2660
+      },
+      "event_id": "11",
+      "computer_name": "WS7-02.AREA17.RANGE"
+    },
+    "agent": {
+      "type": "winlogbeat",
+      "ephemeral_id": "81f7f837-be82-4caf-b864-cea35581eb79",
+      "version": "7.15.2",
+      "name": "WS7-02",
+      "id": "b4b277e3-c03c-47cb-a347-f796d22911f2",
+      "hostname": "WS7-02"
+    },
+    "message": "File created:\nRuleName: -\nUtcTime: 2024-07-10 08:43:54.067\nProcessGuid: {432a28b0-4989-668e-0701-000000000f00}\nProcessId: 3572\nImage: C:\\Skyview Client\\skyview_client.exe\nTargetFilename: C:\\Users\\S9589~1.COL\\AppData\\Local\\Temp\\_MEI35722\\mpl-data\\fonts\\ttf\\STIXSizOneSymReg.ttf\nCreationUtcTime: 2024-07-10 08:43:54.067",
+    "related": {
+      "hosts": [
+        "WS7-02.AREA17.RANGE",
+        "ws7-02.area17.range",
+        "ws7-02"
+      ],
+      "event": {},
+      "ip": [
+        "fe80::58e6:ad46:11c1:d151",
+        "192.168.17.103"
+      ],
+      "hostname": [
+        "WS7-02.AREA17.RANGE",
+        "ws7-02.area17.range",
+        "ws7-02"
+      ],
+      "file": {
+        "name": [
+          "skyview_client.exe",
+          "STIXSizOneSymReg.ttf"
+        ],
+        "path": [
+          "C:\\Skyview Client\\skyview_client.exe",
+          "C:\\Users\\S9589~1.COL\\AppData\\Local\\Temp\\_MEI35722\\mpl-data\\fonts\\ttf\\STIXSizOneSymReg.ttf"
+        ]
+      },
+      "process": {
+        "entity_id": [
+          "{432a28b0-4989-668e-0701-000000000f00}"
+        ],
+        "name": [
+          "skyview_client.exe"
+        ],
+        "pid": [
+          "3572"
+        ]
+      }
+    },
+    "user": {},
+    "event": {
+      "type": "creation",
+      "provider": "Microsoft-Windows-Sysmon",
+      "action": "File created (rule: FileCreate)",
+      "category": "file",
+      "original": "File created:\nRuleName: -\nUtcTime: 2024-07-10 08:43:54.067\nProcessGuid: {432a28b0-4989-668e-0701-000000000f00}\nProcessId: 3572\nImage: C:\\Skyview Client\\skyview_client.exe\nTargetFilename: C:\\Users\\S9589~1.COL\\AppData\\Local\\Temp\\_MEI35722\\mpl-data\\fonts\\ttf\\STIXSizOneSymReg.ttf\nCreationUtcTime: 2024-07-10 08:43:54.067",
+      "created": "2024-07-10T08:43:55.783Z",
+      "ingested": "2024-07-10T08:44:19.972424Z",
+      "kind": "event",
+      "dataset": "winlogbeat.sysmon",
+      "code": "11",
+      "module": "sysmon"
+    },
+    "@version": "1",
+    "host": {
+      "address": [
+        "fe80::58e6:ad46:11c1:d151",
+        "192.168.17.103"
+      ],
+      "os": {
+        "type": "windows",
+        "version": "10.0",
+        "family": "windows",
+        "name": "Windows 10 Pro",
+        "build": "19041.450",
+        "platform": "windows",
+        "kernel": "10.0.19041.450 (WinBuild.160101.0800)"
+      },
+      "name": "ws7-02.area17.range",
+      "architecture": "x86_64",
+      "id": "432a28b0-b6c8-4c45-88c5-de287a144516",
+      "mac": [
+        "00:0c:29:78:df:aa"
+      ],
+      "ip": [
+        "fe80::58e6:ad46:11c1:d151",
+        "192.168.17.103"
+      ],
+      "hostname": "ws7-02"
+    },
+    "temp": {},
+    "tags": [
+      "beats_input_codec_plain_applied",
+      "winlogbeat"
+    ],
+    "file": {
+      "created": "2024-07-10T08:43:54.067Z",
+      "directory": "C:\\Users\\S9589~1.COL\\AppData\\Local\\Temp\\_MEI35722\\mpl-data\\fonts\\ttf",
+      "extension": "ttf",
+      "path": "C:\\Users\\S9589~1.COL\\AppData\\Local\\Temp\\_MEI35722\\mpl-data\\fonts\\ttf\\STIXSizOneSymReg.ttf",
+      "name": "STIXSizOneSymReg.ttf"
+    },
+    "ecs": {
+      "version": "8.4.0"
+    },
+    "log": {
+      "logstash_time": 2.792924165725708,
+      "transport_delay": 24.18942403793335,
+      "level": "information"
+    },
+    "process": {
+      "name": "skyview_client.exe",
+      "pid": "3572",
+      "is_lolbin": false,
+      "executable": "C:\\Skyview Client\\skyview_client.exe",
+      "entity_id": "{432a28b0-4989-668e-0701-000000000f00}",
+      "is_gtfobin": false
+    },
+    "@timestamp": "2024-07-10T08:43:54.067Z"
+  },
+  {
+    "_id": "5SVrE5sBSOI4GALuSrGi",
+    "winlog": {
+      "channel": "Security",
+      "event_id": "4798",
+      "provider_name": "Microsoft-Windows-Security-Auditing",
+      "task": "User Account Management",
+      "record_id": 392914,
+      "opcode": "Info",
+      "logon": {
+        "id": "0x3e7"
+      },
+      "activity_id": "{d09de66d-5d9c-0001-f6e6-9dd09c5ddc01}",
+      "provider_guid": "{54849625-5478-4994-a5ba-3e3b0328c30d}",
+      "process": {
+        "pid": 724,
+        "thread": {
+          "id": 6108
+        }
+      },
+      "keywords": [
+        "Audit Success"
+      ],
+      "computer_name": "afb-w10-04-5.afb.lan",
+      "api": "wineventlog",
+      "event_data": {
+        "SubjectUserName": "AFB-W10-04-5$",
+        "TargetUserName": "i-admin0",
+        "CallerProcessName": "C:\\Program Files\\Malwarebytes\\Anti-Malware\\MBAMService.exe",
+        "CallerProcessId": "0xc04",
+        "TargetSid": "S-1-5-21-4187478062-1246286956-3924430944-1003",
+        "SubjectUserSid": "S-1-5-18",
+        "SubjectDomainName": "AFB",
+        "TargetDomainName": "AFB-W10-04-5",
+        "SubjectLogonId": "0x3e7"
+      }
+    },
+    "tags": [
+      "beats_input_codec_plain_applied",
+      "winlogbeat"
+    ],
+    "ecs": {
+      "version": "8.4.0"
+    },
+    "log": {
+      "transport_delay": 36.77056002616882,
+      "logstash_time": 0.011566877365112305,
+      "level": "information"
+    },
+    "event": {
+      "original": "A user's local group membership was enumerated.\n\nSubject:\n\tSecurity ID:\t\tS-1-5-18\n\tAccount Name:\t\tAFB-W10-04-5$\n\tAccount Domain:\t\tAFB\n\tLogon ID:\t\t0x3E7\n\nUser:\n\tSecurity ID:\t\tS-1-5-21-4187478062-1246286956-3924430944-1003\n\tAccount Name:\t\ti-admin0\n\tAccount Domain:\t\tAFB-W10-04-5\n\nProcess Information:\n\tProcess ID:\t\t0xc04\n\tProcess Name:\t\tC:\\Program Files\\Malwarebytes\\Anti-Malware\\MBAMService.exe",
+      "type": [
+        "user",
+        "info"
+      ],
+      "kind": "event",
+      "created": "2025-12-12T16:35:20.431Z",
+      "dataset": "winlogbeat.security",
+      "action": "User Account Management",
+      "category": "iam",
+      "code": "4798",
+      "provider": "Microsoft-Windows-Security-Auditing",
+      "outcome": "success",
+      "module": "winlogbeat",
+      "ingested": "2025-12-12T16:35:57.201560Z"
+    },
+    "user": {
+      "logon": {
+        "id": "0x3e7"
+      },
+      "name": "i-admin0",
+      "id": [
+        "S-1-5-18"
+      ],
+      "domain": "AFB-W10-04-5"
+    },
+    "related": {
+      "event": {},
+      "user": [
+        "AFB-W10-04-5$",
+        "i-admin0"
+      ],
+      "hosts": [
+        "afb-w10-04-5.afb.lan",
+        "afb-w10-04-5"
+      ],
+      "user_id": [
+        "S-1-5-18"
+      ],
+      "logon_id": [
+        "0x3e7"
+      ],
+      "domain": [
+        "AFB",
+        "AFB-W10-04-5"
+      ],
+      "file": {},
+      "process": {
+        "name": [
+          "C:\\Program Files\\Malwarebytes\\Anti-Malware\\MBAMService.exe"
+        ]
+      },
+      "hostname": [
+        "afb-w10-04-5.afb.lan",
+        "afb-w10-04-5"
+      ],
+      "ip": [
+        "28.158.100.54",
+        "10.10.10.54"
+      ]
+    },
+    "agent": {
+      "id": "e0194f29-ed00-4421-9854-dc8ac1766a41",
+      "ephemeral_id": "c58f7e99-4b61-4855-a281-76f8f83e2e17",
+      "name": "afb-w10-04-5",
+      "version": "7.15.2",
+      "hostname": "afb-w10-04-5",
+      "type": "winlogbeat"
+    },
+    "@timestamp": "2025-12-12T16:35:18.920Z",
+    "message": "A user's local group membership was enumerated.\n\nSubject:\n\tSecurity ID:\t\tS-1-5-18\n\tAccount Name:\t\tAFB-W10-04-5$\n\tAccount Domain:\t\tAFB\n\tLogon ID:\t\t0x3E7\n\nUser:\n\tSecurity ID:\t\tS-1-5-21-4187478062-1246286956-3924430944-1003\n\tAccount Name:\t\ti-admin0\n\tAccount Domain:\t\tAFB-W10-04-5\n\nProcess Information:\n\tProcess ID:\t\t0xc04\n\tProcess Name:\t\tC:\\Program Files\\Malwarebytes\\Anti-Malware\\MBAMService.exe",
+    "@version": "1",
+    "host": {
+      "id": "1b7e809e-556d-482a-bb9b-504106f724f7",
+      "name": "afb-w10-04-5.afb.lan",
+      "mac": [
+        "00:50:56:a9:ee:2b",
+        "00:50:56:a9:83:77"
+      ],
+      "hostname": "afb-w10-04-5",
+      "os": {
+        "family": "windows",
+        "kernel": "10.0.19041.264 (WinBuild.160101.0800)",
+        "platform": "windows",
+        "build": "19041.264",
+        "name": "Windows 10 Enterprise",
+        "version": "10.0",
+        "type": "windows"
+      },
+      "architecture": "x86_64",
+      "ip": [
+        "28.158.100.54",
+        "10.10.10.54"
+      ],
+      "address": [
+        "28.158.100.54",
+        "10.10.10.54"
+      ]
+    }
+  },
+  {
+    "_id": "7JlrE5sBHOOAEQsvFC05",
+    "winlog": {
+      "channel": "Microsoft-Windows-PowerShell/Operational",
+      "task": "Executing Pipeline",
+      "record_id": 1943757,
+      "provider_name": "Microsoft-Windows-PowerShell",
+      "event_id": "4103",
+      "user": {
+        "domain": "NT AUTHORITY",
+        "name": "SYSTEM",
+        "type": "User",
+        "identifier": "S-1-5-18"
+      },
+      "opcode": "To be used when operation is just executing a method",
+      "activity_id": "{02CB3CC8-F800-0001-36B4-BB2F9D5DDC01}",
+      "provider_guid": "{A0C1853B-5C40-4B15-8766-3CF1C58F985A}",
+      "process": {
+        "pid": 5604,
+        "thread": {
+          "id": 6384
+        }
+      },
+      "version": 1,
+      "computer_name": "FHN-WIN7-SP3-6.fhn.lan",
+      "api": "wineventlog",
+      "event_data": {
+        "Severity": "Informational\n        Host Name = ConsoleHost\n        Host Version = 5.0.10586.117\n        Host ID = 2c2b3f50-1f33-4bce-896b-8c5c1e5bdd66\n        Host Application = C:\\windows\\system32\\WindowsPowershell\\v1.0\\powershell.exe -NoProfile -NonInteractive -NoLogo -ExecutionPolicy Bypass -File C:\\ProgramData\\PuppetLabs\\puppet\\cache\\lib\\puppet_x\\templates\\powershell\\init_ps.ps1 00d93c68-8cdd-42e1-bb01-7e01b2f76e27PuppetPsHost\n        Engine Version = 5.0.10586.117\n        Runspace ID = 7336d369-f830-4f1c-a6f8-05206a1f4ff0\n        Pipeline ID = 1\n        Command Name = init_ps.ps1\n        Command Type = ExternalScript\n        Script Name = \n        Command Path = C:\\ProgramData\\PuppetLabs\\puppet\\cache\\lib\\puppet_x\\templates\\powershell\\init_ps.ps1\n        Sequence Number = 330\n        User = FHN\\SYSTEM\n        Connected User = \n        Shell ID = Microsoft.PowerShell"
+      }
+    },
+    "tags": [
+      "beats_input_codec_plain_applied",
+      "winlogbeat"
+    ],
+    "log": {
+      "transport_delay": 36.81687879562378,
+      "logstash_time": 0.0076029300689697266,
+      "level": "information"
+    },
+    "ecs": {
+      "version": "8.4.0"
+    },
+    "event": {
+      "type": "info",
+      "original": "CommandInvocation(init_ps.ps1): \"init_ps.ps1\"\nCommandInvocation(Out-Default): \"Out-Default\"\n\n\nContext:\n        Severity = Informational\n        Host Name = ConsoleHost\n        Host Version = 5.0.10586.117\n        Host ID = 2c2b3f50-1f33-4bce-896b-8c5c1e5bdd66\n        Host Application = C:\\windows\\system32\\WindowsPowershell\\v1.0\\powershell.exe -NoProfile -NonInteractive -NoLogo -ExecutionPolicy Bypass -File C:\\ProgramData\\PuppetLabs\\puppet\\cache\\lib\\puppet_x\\templates\\powershell\\init_ps.ps1 00d93c68-8cdd-42e1-bb01-7e01b2f76e27PuppetPsHost\n        Engine Version = 5.0.10586.117\n        Runspace ID = 7336d369-f830-4f1c-a6f8-05206a1f4ff0\n        Pipeline ID = 1\n        Command Name = init_ps.ps1\n        Command Type = ExternalScript\n        Script Name = \n        Command Path = C:\\ProgramData\\PuppetLabs\\puppet\\cache\\lib\\puppet_x\\templates\\powershell\\init_ps.ps1\n        Sequence Number = 330\n        User = FHN\\SYSTEM\n        Connected User = \n        Shell ID = Microsoft.PowerShell\n\n\nUser Data:",
+      "kind": "event",
+      "created": "2025-12-12T16:35:06.456Z",
+      "dataset": "winlogbeat.powershell",
+      "action": "Executing Pipeline",
+      "category": "process",
+      "code": "4103",
+      "provider": "Microsoft-Windows-PowerShell",
+      "module": [
+        "winlogbeat",
+        "powershell"
+      ],
+      "ingested": "2025-12-12T16:35:43.272879Z"
+    },
+    "user": {
+      "name": [
+        "SYSTEM"
+      ],
+      "domain": [
+        "NT AUTHORITY"
+      ]
+    },
+    "related": {
+      "event": {},
+      "user": [
+        "SYSTEM"
+      ],
+      "hosts": [
+        "FHN-WIN7-SP3-6.fhn.lan",
+        "fhn-win7-sp3-6.fhn.lan",
+        "fhn-win7-sp3-6"
+      ],
+      "domain": [
+        "NT AUTHORITY"
+      ],
+      "file": {},
+      "process": {},
+      "hostname": [
+        "FHN-WIN7-SP3-6.fhn.lan",
+        "fhn-win7-sp3-6.fhn.lan",
+        "fhn-win7-sp3-6"
+      ],
+      "ip": [
+        "24.205.133.49",
+        "10.10.13.49"
+      ]
+    },
+    "agent": {
+      "id": "97ed3566-29aa-4d15-bb81-186e77dbe872",
+      "ephemeral_id": "4f5e98f7-3af4-4a07-9896-35e60b71159d",
+      "name": "FHN-WIN7-SP3-6",
+      "version": "7.15.2",
+      "hostname": "FHN-WIN7-SP3-6",
+      "type": "winlogbeat"
+    },
+    "@timestamp": "2025-12-12T16:35:04.127Z",
+    "message": "CommandInvocation(init_ps.ps1): \"init_ps.ps1\"\nCommandInvocation(Out-Default): \"Out-Default\"\n\n\nContext:\n        Severity = Informational\n        Host Name = ConsoleHost\n        Host Version = 5.0.10586.117\n        Host ID = 2c2b3f50-1f33-4bce-896b-8c5c1e5bdd66\n        Host Application = C:\\windows\\system32\\WindowsPowershell\\v1.0\\powershell.exe -NoProfile -NonInteractive -NoLogo -ExecutionPolicy Bypass -File C:\\ProgramData\\PuppetLabs\\puppet\\cache\\lib\\puppet_x\\templates\\powershell\\init_ps.ps1 00d93c68-8cdd-42e1-bb01-7e01b2f76e27PuppetPsHost\n        Engine Version = 5.0.10586.117\n        Runspace ID = 7336d369-f830-4f1c-a6f8-05206a1f4ff0\n        Pipeline ID = 1\n        Command Name = init_ps.ps1\n        Command Type = ExternalScript\n        Script Name = \n        Command Path = C:\\ProgramData\\PuppetLabs\\puppet\\cache\\lib\\puppet_x\\templates\\powershell\\init_ps.ps1\n        Sequence Number = 330\n        User = FHN\\SYSTEM\n        Connected User = \n        Shell ID = Microsoft.PowerShell\n\n\nUser Data:",
+    "@version": "1",
+    "host": {
+      "id": "02dd0a74-026f-4c17-b88b-09c1a041c0bd",
+      "name": "fhn-win7-sp3-6.fhn.lan",
+      "mac": [
+        "00:02:b4:aa:aa:20",
+        "00:02:b4:aa:bb:20"
+      ],
+      "hostname": "fhn-win7-sp3-6",
+      "os": {
+        "family": "windows",
+        "kernel": "6.1.7601.24384 (win7sp1_ldr_escrow.190220-1800)",
+        "platform": "windows",
+        "build": "7601.0",
+        "name": "Windows 7 Enterprise",
+        "version": "6.1",
+        "type": "windows"
+      },
+      "architecture": "x86_64",
+      "ip": [
+        "24.205.133.49",
+        "10.10.13.49"
+      ],
+      "address": [
+        "24.205.133.49",
+        "10.10.13.49"
+      ]
+    }
   }
 ]
