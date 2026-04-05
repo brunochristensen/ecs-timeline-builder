@@ -4,12 +4,12 @@ Browser-based timeline visualization for Elastic Common Schema (ECS) events. Sup
 
 ## Features
 
-- Drag-and-drop or paste ECS JSON/NDJSON events
-- Swim lane visualization grouped by host
-- Cross-host connection lines for network events
-- Event filtering by category
-- Real-time collaborative editing (multiple users, shared timeline)
-- Export timeline as JSON
+- Drag-and-drop or paste ECS JSON/NDJSON events right from Kibana
+- Swim lane visualization grouped by host for maximum clarity
+- Cross-host connection lines for network events to track adversary movement
+- Event filtering by event category
+- Real-time collaborative editing with multiple users
+- Export timeline as JSON for sharing and preservation
 
 ## Quick Start
 
@@ -76,13 +76,3 @@ To restore:
 ```bash
 docker cp ./backup.json ecs-timeline:/app/data/timeline.json
 ```
-
-## Usage
-
-1. Paste ECS JSON into the text area or drop a `.json`/`.ndjson` file
-2. Click the play button or press `Ctrl+Enter` to parse
-3. Click events on the timeline to view details
-4. Use mouse wheel to zoom, drag to pan
-5. Filter event types using the sidebar checkboxes
-6. Export timeline via the sidebar when done
-
