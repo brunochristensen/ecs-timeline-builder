@@ -1,6 +1,7 @@
 {
+  "type": "module",
   "name": "ecs-timeline-builder",
-  "version": "1.0.0",
+  "version": "0.1.0",
   "description": "Browser based timeline builder for ECS events.",
   "scripts": {
     "start": "node server.js",

@@ -19,7 +19,6 @@ curl -L -o "$LIB_DIR/d3.v7.min.js" "https://d3js.org/d3.v7.min.js"
 
 echo ""
 echo "Downloading Inter font..."
-# Inter from Google Fonts (woff2 format)
 curl -L -o "$FONTS_DIR/Inter-Regular.woff2" \
     "https://github.com/rsms/inter/raw/master/docs/font-files/Inter-Regular.woff2"
 curl -L -o "$FONTS_DIR/Inter-Medium.woff2" \
@@ -29,7 +28,6 @@ curl -L -o "$FONTS_DIR/Inter-SemiBold.woff2" \
 
 echo ""
 echo "Downloading JetBrains Mono font..."
-# JetBrains Mono from official releases
 curl -L -o /tmp/jetbrains-mono.zip \
     "https://github.com/JetBrains/JetBrainsMono/releases/download/v2.304/JetBrainsMono-2.304.zip"
 unzip -j -o /tmp/jetbrains-mono.zip "fonts/webfonts/JetBrainsMono-Regular.woff2" -d "$FONTS_DIR/"

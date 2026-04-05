@@ -34,7 +34,13 @@ export function formatDuration(ms) {
  * @returns {string} Formatted label (e.g., "Source IP", "Process Name")
  */
 export function formatKey(key) {
-    return key.replace(/([A-Z])/g, ' $1').replace(/^./, s => s.toUpperCase());
+    const ABBREVIATIONS = ['ip', 'dns', 'url', 'http', 'id', 'pid', 'mac', 'os', 'md5', 'sha1', 'sha256'];
+    return key
+        .replace(/([A-Z])/g, ' $1')
+        .trim()
+        .split(' ')
+        .map(word => ABBREVIATIONS.includes(word.toLowerCase()) ? word.toUpperCase() : word.charAt(0).toUpperCase() + word.slice(1))
+        .join(' ');
 }
 
 /**

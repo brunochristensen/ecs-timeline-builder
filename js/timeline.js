@@ -96,10 +96,8 @@ export function renderTimelineVisualization(events, hostRegistry, connections) {
 
     const containerRect = container.node().getBoundingClientRect();
     const width = Math.max(containerRect.width, config.minWidth);
-    const height = Math.max(
-        hosts.length * config.laneHeight + config.margin.top + config.margin.bottom,
-        400
-    );
+    const contentHeight = hosts.length * config.laneHeight + config.margin.top + config.margin.bottom;
+    const height = Math.max(contentHeight, containerRect.height);
 
     // Update SVG size
     svg.attr('width', width)

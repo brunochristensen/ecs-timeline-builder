@@ -1,4 +1,3 @@
-import { parseEvents, buildHostRegistry, identifyConnections } from "./parser.js";
 import {
     initTimelineVisualization,
     renderTimelineVisualization,
@@ -10,12 +9,8 @@ import {
 } from "./timeline.js";
 import { formatDuration } from "./utils.js";
 import { renderEventDetailPanel } from "./detail-renderer.js";
-import { initWebSocketSync, isConnected, sendEventsToServer, sendClearToServer } from "./sync.js";
-
-// State
-let currentEvents = [];
-let currentHostRegistry = null;
-let currentConnections = [];
+import { initWebSocketSync, isConnected, sendEventsToServer, sendDeleteToServer, sendClearToServer } from "./sync.js";
+import { state } from "./state.js";
 
 // DOM Elements
 const dropZone = document.getElementById('drop-zone');
@@ -46,13 +41,11 @@ const zoomResetBtn = document.getElementById('zoom-reset');
 
 /**
  * Initializes the application on page load.
- * Sets up D3 visualization, event listeners, and WebSocket sync.
+ * Sets up D3 visualization, event listeners, state subscriptions, and WebSocket sync.
  */
 function init() {
-    // Initialize timeline visualization
     initTimelineVisualization('#timeline-container', showEventDetail);
 
-    // Set up event listeners
     setupDragDrop();
     setupPasteInput();
     setupFilters();
@@ -60,117 +53,68 @@ function init() {
     setupDetailPanel();
     setupSidebar();
     setupHeaderControls();
+    subscribeToState();
 
-    // Initialize WebSocket sync
-    initWebSocketSync({
-        onSync: handleFullSync,
-        onEventsAdded: handleEventsAdded,
-        onCleared: performClear,
-        onUserCount: handleUserCount,
-        onConnectionChange: handleConnectionChange
-    });
+    initWebSocketSync();
 }
 
 /**
- * Handles full state synchronization from the server.
- * Called on initial connection and after reconnection to restore shared state.
- *
- * @param {Array} rawEvents - Complete array of raw events from server
+ * Subscribes to state change events and updates UI accordingly.
  */
-function handleFullSync(rawEvents) {
-    // Clear current state
-    currentEvents = [];
-
-    if (rawEvents.length > 0) {
-        // Parse and render the synced events
-        currentEvents = parseEvents(rawEvents);
-        currentHostRegistry = buildHostRegistry(currentEvents);
-        currentConnections = identifyConnections(currentEvents, currentHostRegistry);
-
-        updateStats(currentEvents, currentHostRegistry, currentConnections);
+function subscribeToState() {
+    state.on('events:added', () => {
+        updateStats();
         clearBtn.disabled = false;
         exportBtn.disabled = false;
+        renderTimelineVisualization(state.events, state.hostRegistry, state.connections);
+    });
 
-        renderTimelineVisualization(currentEvents, currentHostRegistry, currentConnections);
-    } else {
-        // Empty timeline
-        currentHostRegistry = null;
-        currentConnections = [];
-        resetStats();
+    state.on('events:synced', () => {
+        if (state.events.length > 0) {
+            updateStats();
+            clearBtn.disabled = false;
+            exportBtn.disabled = false;
+            renderTimelineVisualization(state.events, state.hostRegistry, state.connections);
+        } else {
+            resetStats();
+            clearBtn.disabled = true;
+            exportBtn.disabled = true;
+            clearTimelineVisualization();
+        }
+    });
+
+    state.on('event:deleted', () => {
+        eventDetail.hidden = true;
+        if (state.events.length > 0) {
+            updateStats();
+            renderTimelineVisualization(state.events, state.hostRegistry, state.connections);
+        } else {
+            resetStats();
+            clearBtn.disabled = true;
+            exportBtn.disabled = true;
+            clearTimelineVisualization();
+        }
+    });
+
+    state.on('events:cleared', () => {
+        jsonInput.value = '';
+        eventDetail.hidden = true;
         clearBtn.disabled = true;
         exportBtn.disabled = true;
+        resetStats();
         clearTimelineVisualization();
-    }
-}
+    });
 
-/**
- * Handles incremental event additions from other connected clients.
- * Deduplicates against existing events before adding to timeline.
- *
- * @param {Array} rawEvents - New raw events broadcast by another client
- */
-function handleEventsAdded(rawEvents) {
-    if (rawEvents.length === 0) return;
+    state.on('connection:changed', (connected) => {
+        const usersEl = document.getElementById('stat-users');
+        if (!connected) {
+            usersEl.textContent = 'Reconnecting...';
+        }
+    });
 
-    // Parse the new events
-    const newParsed = parseEvents(rawEvents);
-
-    // Deduplicate
-    const existingIds = new Set(currentEvents.map(e => e.id));
-    const uniqueNew = newParsed.filter(e => !existingIds.has(e.id));
-
-    if (uniqueNew.length > 0) {
-        currentEvents = [...currentEvents, ...uniqueNew];
-        currentHostRegistry = buildHostRegistry(currentEvents);
-        currentConnections = identifyConnections(currentEvents, currentHostRegistry);
-
-        updateStats(currentEvents, currentHostRegistry, currentConnections);
-        clearBtn.disabled = false;
-        exportBtn.disabled = false;
-
-        renderTimelineVisualization(currentEvents, currentHostRegistry, currentConnections);
-    }
-}
-
-/**
- * Resets all application state to empty.
- * Called when timeline is cleared locally or by another client.
- */
-function performClear() {
-    currentEvents = [];
-    currentHostRegistry = null;
-    currentConnections = [];
-
-    jsonInput.value = '';
-    eventDetail.hidden = true;
-
-    clearBtn.disabled = true;
-    exportBtn.disabled = true;
-
-    resetStats();
-    clearTimelineVisualization();
-}
-
-/**
- * Updates the connected users count display in the stats panel.
- *
- * @param {number} count - Number of currently connected clients
- */
-function handleUserCount(count) {
-    document.getElementById('stat-users').textContent = count;
-}
-
-/**
- * Updates UI to reflect WebSocket connection state changes.
- * Shows "Reconnecting..." when disconnected.
- *
- * @param {boolean} connected - Current connection state
- */
-function handleConnectionChange(connected) {
-    const usersEl = document.getElementById('stat-users');
-    if (!connected) {
-        usersEl.textContent = 'Reconnecting...';
-    }
+    state.on('usercount:changed', (count) => {
+        document.getElementById('stat-users').textContent = count;
+    });
 }
 
 /**
@@ -184,21 +128,38 @@ function resetStats() {
 }
 
 /**
+ * Updates the statistics panel from current state.
+ */
+function updateStats() {
+    const events = state.events;
+    const hostRegistry = state.hostRegistry;
+    const connections = state.connections;
+
+    document.getElementById('stat-events').textContent = events.length;
+    document.getElementById('stat-hosts').textContent = hostRegistry.getHostList().length;
+    document.getElementById('stat-connections').textContent = connections.length;
+
+    const timestamps = events.map(e => e.timestamp).sort((a, b) => a - b);
+    if (timestamps.length > 1) {
+        const duration = timestamps[timestamps.length - 1] - timestamps[0];
+        document.getElementById('stat-timespan').textContent = formatDuration(duration);
+    } else {
+        document.getElementById('stat-timespan').textContent = '-';
+    }
+}
+
+/**
  * Configures drag-and-drop file upload functionality.
- * Handles click-to-browse, drag-over styling, and file drop events.
  */
 function setupDragDrop() {
-    // Click to select files
     dropZone.addEventListener('click', () => fileInput.click());
 
-    // File input change
     fileInput.addEventListener('change', (e) => {
         if (e.target.files.length > 0) {
             handleFiles(Array.from(e.target.files));
         }
     });
 
-    // Drag events
     dropZone.addEventListener('dragover', (e) => {
         e.preventDefault();
         dropZone.classList.add('drag-over');
@@ -225,7 +186,6 @@ function setupDragDrop() {
 
 /**
  * Reads dropped or selected JSON/NDJSON files and triggers parsing.
- * Concatenates multiple files into a single input stream.
  *
  * @param {File[]} files - Array of File objects to process
  */
@@ -269,7 +229,6 @@ function readFile(file) {
 function setupPasteInput() {
     parseBtn.addEventListener('click', parseAndRender);
 
-    // Also parse on Ctrl+Enter
     jsonInput.addEventListener('keydown', (e) => {
         if (e.ctrlKey && e.key === 'Enter') {
             parseAndRender();
@@ -278,8 +237,8 @@ function setupPasteInput() {
 }
 
 /**
- * Parses JSON input, deduplicates against existing events, and renders the timeline.
- * Syncs new events to server if connected. Events accumulate across multiple imports.
+ * Parses JSON input, deduplicates against existing events, and syncs to server.
+ * State subscriptions handle rendering and UI updates.
  */
 function parseAndRender() {
     const input = jsonInput.value.trim();
@@ -290,58 +249,29 @@ function parseAndRender() {
     }
 
     try {
-        // Parse new events
-        const newEvents = parseEvents(input);
+        const result = state.addEvents(input);
 
-        if (newEvents.length === 0) {
+        if (result.parsed === 0) {
             alert('No valid events found in the input');
             return;
         }
 
-        // Deduplicate: build set of existing event IDs
-        const existingIds = new Set(currentEvents.map(e => e.id));
-
-        // Filter out duplicates and count them
-        const uniqueNewEvents = newEvents.filter(e => !existingIds.has(e.id));
-        const duplicateCount = newEvents.length - uniqueNewEvents.length;
-
-        if (uniqueNewEvents.length === 0) {
-            alert(`All ${newEvents.length} events already exist in the timeline`);
+        if (result.added.length === 0) {
+            alert(`All ${result.parsed} events already exist in the timeline`);
             jsonInput.value = '';
             return;
         }
 
-        // If sync is enabled, send raw events to server
+        // Send to server for broadcast to other clients
         if (isConnected()) {
-            // Extract raw events for the unique parsed ones
-            const uniqueRawEvents = uniqueNewEvents.map(e => ({ _id: e.id, ...e.raw}));
-            console.log('Sending to server:', uniqueRawEvents);
-            sendEventsToServer(uniqueRawEvents);
+            const rawEvents = result.added.map(e => ({ _id: e.id, ...e.raw }));
+            sendEventsToServer(rawEvents);
         }
 
-        // Add new events to cumulative list
-        currentEvents = [...currentEvents, ...uniqueNewEvents];
-
-        // Rebuild host registry and connections from full event list
-        currentHostRegistry = buildHostRegistry(currentEvents);
-        currentConnections = identifyConnections(currentEvents, currentHostRegistry);
-
-        // Update stats with cumulative totals
-        updateStats(currentEvents, currentHostRegistry, currentConnections);
-
-        // Enable action buttons
-        clearBtn.disabled = false;
-        exportBtn.disabled = false;
-
-        // Clear textarea
         jsonInput.value = '';
 
-        // Render timeline with all events
-        renderTimelineVisualization(currentEvents, currentHostRegistry, currentConnections);
-
-        // Notify user if some duplicates were skipped
-        if (duplicateCount > 0) {
-            console.log(`Added ${uniqueNewEvents.length} events, skipped ${duplicateCount} duplicates`);
+        if (result.duplicates > 0) {
+            console.log(`Added ${result.added.length} events, skipped ${result.duplicates} duplicates`);
         }
 
     } catch (error) {
@@ -351,30 +281,7 @@ function parseAndRender() {
 }
 
 /**
- * Updates the statistics panel with current event counts and time span.
- *
- * @param {Array} events - Current event array
- * @param {Object} hostRegistry - Current host registry
- * @param {Array} connections - Current connections array
- */
-function updateStats(events, hostRegistry, connections) {
-    document.getElementById('stat-events').textContent = events.length;
-    document.getElementById('stat-hosts').textContent = hostRegistry.getHostList().length;
-    document.getElementById('stat-connections').textContent = connections.length;
-
-    // Calculate time span
-    const timestamps = events.map(e => e.timestamp).sort((a, b) => a - b);
-    if (timestamps.length > 1) {
-        const duration = timestamps[timestamps.length - 1] - timestamps[0];
-        document.getElementById('stat-timespan').textContent = formatDuration(duration);
-    } else {
-        document.getElementById('stat-timespan').textContent = '-';
-    }
-}
-
-/**
  * Attaches change listeners to category filter checkboxes.
- * Updates timeline visualization when filters change.
  */
 function setupFilters() {
     const updateFilters = () => {
@@ -409,7 +316,6 @@ function setupZoomControls() {
 function setupDetailPanel() {
     closeDetailBtn.addEventListener('click', hideEventDetail);
 
-    // Close on escape key
     document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape' && !eventDetail.hidden) {
             hideEventDetail();
@@ -434,6 +340,20 @@ function setupSidebar() {
 function showEventDetail(event) {
     detailContent.innerHTML = renderEventDetailPanel(event);
     eventDetail.hidden = false;
+
+    const deleteBtn = document.getElementById('delete-event-btn');
+    if (deleteBtn) {
+        deleteBtn.addEventListener('click', () => {
+            const eventId = deleteBtn.dataset.eventId;
+            if (confirm('Delete this event? This cannot be undone.')) {
+                if (isConnected()) {
+                    sendDeleteToServer(eventId);
+                } else {
+                    state.deleteEvent(eventId);
+                }
+            }
+        });
+    }
 }
 
 /**
@@ -455,27 +375,20 @@ function setupHeaderControls() {
  * Exports all current events as a timestamped JSON file download.
  */
 function exportTimeline() {
-    if (currentEvents.length === 0) {
+    if (state.events.length === 0) {
         alert('No events to export');
         return;
     }
 
-    // Extract raw events for export
-    const rawEvents = currentEvents.map(e => e.raw);
-
-    // Create JSON string
+    const rawEvents = state.events.map(e => e.raw);
     const jsonString = JSON.stringify(rawEvents, null, 2);
-
-    // Create blob and download link
     const blob = new Blob([jsonString], {type: 'application/json'});
     const url = URL.createObjectURL(blob);
 
-    // Generate filename with timestamp
     const now = new Date();
     const timestamp = now.toISOString().replace(/[:.]/g, '-').slice(0, 19);
     const filename = `ecs-timeline-${timestamp}.json`;
 
-    // Trigger download
     const a = document.createElement('a');
     a.href = url;
     a.download = filename;
@@ -483,7 +396,6 @@ function exportTimeline() {
     a.click();
     document.body.removeChild(a);
 
-    // Clean up
     URL.revokeObjectURL(url);
 }
 
@@ -492,15 +404,12 @@ function exportTimeline() {
  * If connected, sends clear request to server; otherwise clears locally.
  */
 function clearTimeline() {
-    // If sync is enabled, notify server (which will broadcast to all clients)
     if (isConnected()) {
         sendClearToServer();
-        // The handleRemoteCleared callback will handle the actual clearing
         return;
     }
 
-    // Local-only clear
-    performClear();
+    state.clear();
 }
 
 // Initialize when DOM is ready
