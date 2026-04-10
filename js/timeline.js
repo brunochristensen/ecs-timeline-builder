@@ -312,11 +312,13 @@ function renderEvents(events, xScale, yScale, hostRegistry) {
         let hostKey = event.host.hostname;
 
         // For network events, also check if we should place on source/dest host
-        if (event.connection && event.host.hostname === 'Unknown') {
-            // Try to place on source host
-            const sourceHost = hostRegistry.resolveIp(event.connection.sourceIp);
-            if (sourceHost && sourceHost !== event.connection.sourceIp) {
-                hostKey = sourceHost;
+        if (event.host.hostname === 'Unknown' && event.raw) {
+            const sourceIp = event.raw.source?.ip;
+            if (sourceIp) {
+                const sourceHost = hostRegistry.resolveIp(Array.isArray(sourceIp) ? sourceIp[0] : sourceIp);
+                if (sourceHost && sourceHost !== sourceIp) {
+                    hostKey = sourceHost;
+                }
             }
         }
 

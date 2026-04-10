@@ -169,9 +169,9 @@ describe('ECSParser', () => {
 
     });
 
-    describe('connection extraction', () => {
+    describe('parsed event shape', () => {
 
-        it('should extract network connection info', () => {
+        it('should preserve raw ECS data on the parsed event', () => {
             const event = {
                 '@timestamp': '2024-01-15T10:30:00.000Z',
                 'host': { 'hostname': 'firewall' },
@@ -182,35 +182,77 @@ describe('ECSParser', () => {
 
             const result = parseEvents([event]);
 
-            assert.ok(result[0].connection);
-            assert.strictEqual(result[0].connection.sourceIp, '192.168.1.100');
-            assert.strictEqual(result[0].connection.destIp, '10.0.0.50');
-            assert.strictEqual(result[0].connection.destPort, 443);
-            assert.strictEqual(result[0].connection.protocol, 'tcp');
+            assert.strictEqual(result[0].raw.source.ip, '192.168.1.100');
+            assert.strictEqual(result[0].raw.destination.ip, '10.0.0.50');
+            assert.strictEqual(result[0].raw.destination.port, 443);
+            assert.strictEqual(result[0].raw.network.transport, 'tcp');
+        });
+
+        it('should not have connection or details properties', () => {
+            const event = {
+                '@timestamp': '2024-01-15T10:30:00.000Z',
+                'host': { 'hostname': 'server' },
+                'source': { 'ip': '192.168.1.100' },
+                'destination': { 'ip': '10.0.0.50' }
+            };
+
+            const result = parseEvents([event]);
+            assert.strictEqual(result[0].connection, undefined);
+            assert.strictEqual(result[0].details, undefined);
+        });
+
+    });
+
+    describe('identifyConnections()', () => {
+
+        it('should identify cross-host connections from raw event data', () => {
+            const events = parseEvents([
+                {
+                    '@timestamp': '2024-01-15T10:30:00.000Z',
+                    'host': { 'hostname': 'firewall' },
+                    'source': { 'ip': '192.168.1.100', 'port': 54321 },
+                    'destination': { 'ip': '10.0.0.50', 'port': 443 },
+                    'network': { 'transport': 'tcp' }
+                }
+            ]);
+            const registry = buildHostRegistry(events);
+            const connections = identifyConnections(events, registry);
+
+            assert.ok(connections.length > 0);
+            assert.strictEqual(connections[0].sourceIp, '192.168.1.100');
+            assert.strictEqual(connections[0].destIp, '10.0.0.50');
+            assert.strictEqual(connections[0].destPort, 443);
+            assert.strictEqual(connections[0].protocol, 'tcp');
         });
 
         it('should skip localhost connections', () => {
-            const event = {
-                '@timestamp': '2024-01-15T10:30:00.000Z',
-                'host': { 'hostname': 'server' },
-                'source': { 'ip': '127.0.0.1', 'port': 54321 },
-                'destination': { 'ip': '127.0.0.1', 'port': 8080 }
-            };
+            const events = parseEvents([
+                {
+                    '@timestamp': '2024-01-15T10:30:00.000Z',
+                    'host': { 'hostname': 'server' },
+                    'source': { 'ip': '127.0.0.1', 'port': 54321 },
+                    'destination': { 'ip': '127.0.0.1', 'port': 8080 }
+                }
+            ]);
+            const registry = buildHostRegistry(events);
+            const connections = identifyConnections(events, registry);
 
-            const result = parseEvents([event]);
-            assert.strictEqual(result[0].connection, null);
+            assert.strictEqual(connections.length, 0);
         });
 
         it('should skip same-IP connections', () => {
-            const event = {
-                '@timestamp': '2024-01-15T10:30:00.000Z',
-                'host': { 'hostname': 'server' },
-                'source': { 'ip': '192.168.1.100', 'port': 54321 },
-                'destination': { 'ip': '192.168.1.100', 'port': 8080 }
-            };
+            const events = parseEvents([
+                {
+                    '@timestamp': '2024-01-15T10:30:00.000Z',
+                    'host': { 'hostname': 'server' },
+                    'source': { 'ip': '192.168.1.100', 'port': 54321 },
+                    'destination': { 'ip': '192.168.1.100', 'port': 8080 }
+                }
+            ]);
+            const registry = buildHostRegistry(events);
+            const connections = identifyConnections(events, registry);
 
-            const result = parseEvents([event]);
-            assert.strictEqual(result[0].connection, null);
+            assert.strictEqual(connections.length, 0);
         });
 
     });
@@ -313,13 +355,13 @@ describe('Real ECS Data Tests', () => {
             assert.ok(parsed[0].timestamp instanceof Date);
         });
 
-        it('should extract event details from Sysmon events', () => {
+        it('should preserve raw data from Sysmon events', () => {
             const parsed = parseEvents(sysmonEvents.slice(0, 10));
             // Sysmon events have winlog.computer_name, not host.hostname
             // Parser will set host to Unknown but event still parses
             assert.ok(parsed.length > 0);
-            // Check that event details are extracted
-            assert.ok(parsed[0].details);
+            // Check that raw ECS data is preserved
+            assert.ok(parsed[0].raw);
         });
 
     });
@@ -341,10 +383,11 @@ describe('Real ECS Data Tests', () => {
             assert.ok(parsed.length > 0, 'Should parse at least some events');
         });
 
-        it('should extract network connections from Suricata events', () => {
+        it('should identify network connections from Suricata events', () => {
             const parsed = parseEvents(suricataEvents.slice(0, 20));
-            const withConnections = parsed.filter(e => e.connection !== null);
-            assert.ok(withConnections.length > 0, 'Should have events with connection info');
+            const registry = buildHostRegistry(parsed);
+            const connections = identifyConnections(parsed, registry);
+            assert.ok(connections.length > 0, 'Should have events with connection info');
         });
 
         it('should categorize Suricata events as network', () => {
