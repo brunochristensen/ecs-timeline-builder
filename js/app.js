@@ -1,7 +1,6 @@
 import {
     initTimelineVisualization,
     renderTimelineVisualization,
-    setEventCategoryFilters,
     zoomIn,
     zoomOut,
     zoomReset,
@@ -27,13 +26,6 @@ const closeDetailBtn = document.getElementById('close-detail');
 const sidebar = document.getElementById('sidebar');
 const sidebarToggle = document.getElementById('sidebar-toggle');
 
-// Filter checkboxes
-const filterNetwork = document.getElementById('filter-network');
-const filterFile = document.getElementById('filter-file');
-const filterProcess = document.getElementById('filter-process');
-const filterAuth = document.getElementById('filter-auth');
-const filterOther = document.getElementById('filter-other');
-
 // Zoom buttons
 const zoomInBtn = document.getElementById('zoom-in');
 const zoomOutBtn = document.getElementById('zoom-out');
@@ -48,7 +40,6 @@ function init() {
 
     setupDragDrop();
     setupPasteInput();
-    setupFilters();
     setupZoomControls();
     setupDetailPanel();
     setupSidebar();
@@ -278,27 +269,6 @@ function parseAndRender() {
         console.error('Parse error:', error);
         alert(`Error parsing events: ${error.message}`);
     }
-}
-
-/**
- * Attaches change listeners to category filter checkboxes.
- */
-function setupFilters() {
-    const updateFilters = () => {
-        setEventCategoryFilters({
-            network: filterNetwork.checked,
-            file: filterFile.checked,
-            process: filterProcess.checked,
-            authentication: filterAuth.checked,
-            other: filterOther.checked
-        });
-    };
-
-    filterNetwork.addEventListener('change', updateFilters);
-    filterFile.addEventListener('change', updateFilters);
-    filterProcess.addEventListener('change', updateFilters);
-    filterAuth.addEventListener('change', updateFilters);
-    filterOther.addEventListener('change', updateFilters);
 }
 
 /**

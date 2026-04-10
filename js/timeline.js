@@ -29,13 +29,6 @@ function calculateTopMargin() {
 let svg, container, mainGroup;
 let xAxis, zoom;
 let currentData = null;
-let currentFilters = {
-    network: true,
-    file: true,
-    process: true,
-    authentication: true,
-    other: true
-};
 let onEventClick = null;
 
 /**
@@ -103,11 +96,8 @@ export function renderTimelineVisualization(events, hostRegistry, connections) {
     svg.attr('width', width)
         .attr('height', height);
 
-    // Filter events based on current filters
-    const filteredEvents = filterEvents(events);
-
     // Calculate time domain
-    const timeExtent = d3.extent(filteredEvents, d => d.timestamp);
+    const timeExtent = d3.extent(events, d => d.timestamp);
     if (!timeExtent[0] || !timeExtent[1]) {
         console.warn('No valid timestamps in events');
         return;
@@ -139,7 +129,7 @@ export function renderTimelineVisualization(events, hostRegistry, connections) {
     renderAxis(xScale, height);
     renderGrid(xScale, yScale, width, height);
     renderConnections(connections, xScale, yScale, hostRegistry);
-    renderEvents(filteredEvents, xScale, yScale, hostRegistry);
+    renderEvents(events, xScale, yScale, hostRegistry);
 }
 
 /**
@@ -364,42 +354,6 @@ function renderEvents(events, xScale, yScale, hostRegistry) {
 
     // Exit
     dots.exit().remove();
-}
-
-/**
- * Filter events based on category filters
- */
-function filterEvents(events) {
-    return events.filter(event => {
-        const category = event.category;
-        if (category === 'network') return currentFilters.network;
-        if (category === 'file') return currentFilters.file;
-        if (category === 'process') return currentFilters.process;
-        if (category === 'authentication') return currentFilters.authentication;
-        return currentFilters.other;
-    });
-}
-
-/**
- * Updates which event categories are visible on the timeline.
- * Triggers a re-render with the new filter settings applied.
- *
- * @param {Object} filters - Category visibility flags
- * @param {boolean} filters.network - Show network events
- * @param {boolean} filters.file - Show file events
- * @param {boolean} filters.process - Show process events
- * @param {boolean} filters.authentication - Show authentication events
- * @param {boolean} filters.other - Show uncategorized events
- */
-export function setEventCategoryFilters(filters) {
-    currentFilters = {...currentFilters, ...filters};
-    if (currentData) {
-        renderTimelineVisualization(
-            currentData.events,
-            currentData.hostRegistry,
-            currentData.connections
-        );
-    }
 }
 
 /**

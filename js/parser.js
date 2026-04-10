@@ -189,15 +189,11 @@ function hasConnection(event) {
 
     if (!sourceIp || !destIp) return false;
 
-    if (sourceIp === destIp ||
+    return !(sourceIp === destIp ||
         sourceIp === '127.0.0.1' ||
         destIp === '127.0.0.1' ||
         sourceIp.startsWith('::1') ||
-        destIp.startsWith('::1')) {
-        return false;
-    }
-
-    return true;
+        destIp.startsWith('::1'));
 }
 
 /**
