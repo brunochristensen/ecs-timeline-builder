@@ -257,18 +257,21 @@ function extractSummary(event) {
 
 
 /**
- * Generate a unique ID for an event based on its content
- * Uses timestamp + host + category for uniqueness
+ * Generate a deterministic ID for an event based on its content.
+ * Uses timestamp + host + action + category so the same event always
+ * produces the same ID regardless of parse order.
  */
-function generateEventId(event, timestamp, index) {
+function generateEventId(event, timestamp) {
     // Try to use ECS event.id if available
     const eventId = getNestedValue(event, 'event.id');
     if (eventId) return eventId;
 
-    // Generate from content
+    // Generate deterministic ID from content fields
     const host = getFirstString(event, ['host.hostname', 'host.name', 'host.ip']) || 'unknown';
     const ts = timestamp ? timestamp.getTime() : Date.now();
-    return `${ts}-${host}-${index}`;
+    const action = getFirstString(event, ['event.action', 'event.type']) || '';
+    const category = getFirstString(event, ['event.category']) || '';
+    return `${ts}-${host}-${action}-${category}`;
 }
 
 /**
@@ -292,7 +295,7 @@ function parseEvent(rawEvent, index) {
     const summary = extractSummary(event);
 
     // Use ES _id if available, otherwise generate one
-    const eventId = esId || generateEventId(event, timestamp, index);
+    const eventId = esId || generateEventId(event, timestamp);
 
     return {
         id: eventId,
