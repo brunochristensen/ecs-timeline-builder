@@ -90,7 +90,7 @@ function handleMessage(message) {
     switch (message.type) {
         case 'SYNC':
             console.log(`Received sync: ${message.events.length} events`);
-            state.setEvents(message.events);
+            state.setEvents(message.events, message.annotations || {});
             break;
 
         case 'EVENTS_ADDED':
@@ -114,6 +114,14 @@ function handleMessage(message) {
 
         case 'USER_COUNT':
             state.setUserCount(message.count);
+            break;
+
+        case 'ANNOTATION_UPDATED':
+            state.setAnnotation(message.eventId, message.annotation);
+            break;
+
+        case 'ANNOTATION_DELETED':
+            state.deleteAnnotation(message.eventId);
             break;
 
         case 'PING':
@@ -180,6 +188,44 @@ export function sendClearToServer() {
 
     ws.send(JSON.stringify({
         type: 'CLEAR'
+    }));
+
+    return true;
+}
+
+/**
+ * Sends an annotation to the server for broadcast to other clients.
+ *
+ * @param {string} eventId - The event ID to annotate
+ * @param {Object} annotation - { comment, mitreTactic, mitreTechnique }
+ * @returns {boolean} True if message was sent
+ */
+export function sendAnnotationToServer(eventId, annotation) {
+    if (!connectionActive || !ws) return false;
+
+    ws.send(JSON.stringify({
+        type: 'ANNOTATE_EVENT',
+        eventId,
+        comment: annotation.comment || '',
+        mitreTactic: annotation.mitreTactic || '',
+        mitreTechnique: annotation.mitreTechnique || ''
+    }));
+
+    return true;
+}
+
+/**
+ * Requests the server to delete an annotation.
+ *
+ * @param {string} eventId - The event ID whose annotation to delete
+ * @returns {boolean} True if message was sent
+ */
+export function sendDeleteAnnotationToServer(eventId) {
+    if (!connectionActive || !ws) return false;
+
+    ws.send(JSON.stringify({
+        type: 'DELETE_ANNOTATION',
+        eventId
     }));
 
     return true;
