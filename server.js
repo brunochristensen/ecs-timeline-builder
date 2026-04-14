@@ -76,8 +76,17 @@ wss.on('connection', (ws) => {
     ws.on('message', (data) => {
         try {
             const message = JSON.parse(data);
+            if (!message.type || typeof message.type !== 'string') {
+                console.warn('Received message with missing or invalid type');
+                break;
+            }
+
             switch (message.type) {
                 case 'ADD_EVENTS': {
+                    if (!Array.isArray(message.events)) {
+                        console.warn('ADD_EVENTS: missing or invalid events array');
+                        break;
+                    }
                     const result = store.addEvents(message.events);
                     if (result.added.length > 0) {
                         isDirty = true;
@@ -95,6 +104,10 @@ wss.on('connection', (ws) => {
                 }
 
                 case 'DELETE_EVENT': {
+                    if (!message.eventId || typeof message.eventId !== 'string') {
+                        console.warn('DELETE_EVENT: missing or invalid eventId');
+                        break;
+                    }
                     const removed = store.deleteEvent(message.eventId);
                     if (removed) {
                         isDirty = true;
