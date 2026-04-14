@@ -564,6 +564,97 @@ body {
     color: #fff;
 }
 
+/* Annotation Form */
+.annotation-section {
+    border-top: 1px solid var(--border-color);
+}
+
+.annotation-label {
+    display: block;
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    margin-bottom: 4px;
+    margin-top: 8px;
+}
+
+.annotation-input {
+    width: 100%;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    padding: 6px 8px;
+    font-family: 'Inter', sans-serif;
+    font-size: 0.8rem;
+    resize: vertical;
+    box-sizing: border-box;
+}
+
+.annotation-input:focus {
+    outline: none;
+    border-color: var(--color-network);
+}
+
+.annotation-select {
+    width: 100%;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    padding: 6px 8px;
+    font-family: 'Inter', sans-serif;
+    font-size: 0.8rem;
+    box-sizing: border-box;
+}
+
+.annotation-select:focus {
+    outline: none;
+    border-color: var(--color-network);
+}
+
+.annotation-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 10px;
+}
+
+.btn-save-annotation {
+    flex: 1;
+    padding: 6px 12px;
+    background: transparent;
+    color: #22c55e;
+    border: 1px solid #22c55e;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+}
+
+.btn-save-annotation:hover {
+    background: #22c55e;
+    color: #fff;
+}
+
+.btn-delete-annotation {
+    flex: 1;
+    padding: 6px 12px;
+    background: transparent;
+    color: var(--text-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    font-size: 0.8rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+}
+
+.btn-delete-annotation:hover {
+    background: #ef4444;
+    color: #fff;
+    border-color: #ef4444;
+}
+
 /* ================================
    Timeline SVG Styles
    ================================ */
@@ -603,6 +694,11 @@ body {
 .event-dot.authentication { fill: var(--color-auth); }
 .event-dot.registry { fill: var(--color-registry); }
 .event-dot.other { fill: var(--color-other); }
+
+.event-dot.annotated {
+    stroke: #ffd700;
+    stroke-width: 2;
+}
 
 .connection-line {
     stroke: var(--color-connection);

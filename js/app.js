@@ -58,7 +58,7 @@ function subscribeToState() {
         updateStats();
         clearBtn.disabled = false;
         exportBtn.disabled = false;
-        renderTimelineVisualization(state.events, state.hostRegistry, state.connections);
+        renderTimelineVisualization(state.events, state.hostRegistry, state.connections, state.annotations);
     });
 
     state.on('events:synced', () => {
@@ -66,7 +66,7 @@ function subscribeToState() {
             updateStats();
             clearBtn.disabled = false;
             exportBtn.disabled = false;
-            renderTimelineVisualization(state.events, state.hostRegistry, state.connections);
+            renderTimelineVisualization(state.events, state.hostRegistry, state.connections, state.annotations);
         } else {
             resetStats();
             clearBtn.disabled = true;
@@ -79,7 +79,7 @@ function subscribeToState() {
         eventDetail.hidden = true;
         if (state.events.length > 0) {
             updateStats();
-            renderTimelineVisualization(state.events, state.hostRegistry, state.connections);
+            renderTimelineVisualization(state.events, state.hostRegistry, state.connections, state.annotations);
         } else {
             resetStats();
             clearBtn.disabled = true;
@@ -115,7 +115,7 @@ function subscribeToState() {
         }
         // Re-render timeline to update annotation markers
         if (state.events.length > 0) {
-            renderTimelineVisualization(state.events, state.hostRegistry, state.connections);
+            renderTimelineVisualization(state.events, state.hostRegistry, state.connections, state.annotations);
         }
     });
 
@@ -124,7 +124,7 @@ function subscribeToState() {
             showEventDetail(currentDetailEvent);
         }
         if (state.events.length > 0) {
-            renderTimelineVisualization(state.events, state.hostRegistry, state.connections);
+            renderTimelineVisualization(state.events, state.hostRegistry, state.connections, state.annotations);
         }
     });
 }

@@ -80,8 +80,8 @@ export function initTimelineVisualization(containerId, eventClickHandler) {
  * @param {Object} hostRegistry - Host registry mapping hosts to their events
  * @param {Array} connections - Array of cross-host connection objects
  */
-export function renderTimelineVisualization(events, hostRegistry, connections) {
-    currentData = {events, hostRegistry, connections};
+export function renderTimelineVisualization(events, hostRegistry, connections, annotations) {
+    currentData = {events, hostRegistry, connections, annotations};
     const hosts = hostRegistry.getHostList();
 
     // Update top margin based on input box position
@@ -129,7 +129,7 @@ export function renderTimelineVisualization(events, hostRegistry, connections) {
     renderAxis(xScale, height);
     renderGrid(xScale, yScale, width, height);
     renderConnections(connections, xScale, yScale, hostRegistry);
-    renderEvents(events, xScale, yScale, hostRegistry);
+    renderEvents(events, xScale, yScale, hostRegistry, annotations);
 }
 
 /**
@@ -291,7 +291,7 @@ function renderConnections(connections, xScale, yScale, hostRegistry) {
 /**
  * Render event dots on swim lanes
  */
-function renderEvents(events, xScale, yScale, hostRegistry) {
+function renderEvents(events, xScale, yScale, hostRegistry, annotations) {
     const eventsGroup = mainGroup.select('.events-group');
 
     // Group events by host
@@ -331,10 +331,15 @@ function renderEvents(events, xScale, yScale, hostRegistry) {
     const dots = eventsGroup.selectAll('.event-dot')
         .data(allEvents, d => d.id);
 
+    function dotClass(d) {
+        const base = `event-dot ${d.category}`;
+        return annotations && annotations.has(d.id) ? `${base} annotated` : base;
+    }
+
     // Enter
     dots.enter()
         .append('circle')
-        .attr('class', d => `event-dot ${d.category}`)
+        .attr('class', dotClass)
         .attr('r', config.eventRadius)
         .attr('cx', d => xScale(d.timestamp))
         .attr('cy', d => yScale(d.renderHost) + yScale.bandwidth() / 2)
@@ -350,7 +355,7 @@ function renderEvents(events, xScale, yScale, hostRegistry) {
     // Update
     dots.attr('cx', d => xScale(d.timestamp))
         .attr('cy', d => yScale(d.renderHost) + yScale.bandwidth() / 2)
-        .attr('class', d => `event-dot ${d.category}`);
+        .attr('class', dotClass);
 
     // Exit
     dots.exit().remove();
