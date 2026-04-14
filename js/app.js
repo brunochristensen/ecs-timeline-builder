@@ -11,6 +11,7 @@ import { renderEventDetailPanel } from "./detail-renderer.js";
 import { initWebSocketSync, isConnected, sendEventsToServer, sendDeleteToServer, sendClearToServer, sendAnnotationToServer, sendDeleteAnnotationToServer } from "./sync.js";
 import { state } from "./state.js";
 import { TECHNIQUES } from "./mitre.js";
+import { initGapDetection } from "./gap-detection.js";
 
 // DOM Elements
 const dropZone = document.getElementById('drop-zone');
@@ -46,6 +47,7 @@ function init() {
     setupSidebar();
     setupHeaderControls();
     subscribeToState();
+    initGapDetection();
 
     initWebSocketSync();
 }
