@@ -79,7 +79,7 @@ wss.on('connection', (ws) => {
             const message = JSON.parse(data);
             if (!message.type || typeof message.type !== 'string') {
                 console.warn('Received message with missing or invalid type');
-                break;
+                return;
             }
 
             switch (message.type) {

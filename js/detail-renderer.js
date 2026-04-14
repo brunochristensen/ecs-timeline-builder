@@ -1,6 +1,6 @@
 import {escapeHtml, formatKey} from "./utils.js";
 import {getNestedValue} from "./parser.js";
-import {TACTICS, TECHNIQUES, getTacticName, getTechniqueName} from "./mitre.js";
+import {TACTICS, TECHNIQUES} from "./mitre.js";
 
 /**
  * ECS Timeline Builder - Event Detail Panel Renderer
