@@ -8,8 +8,9 @@ import {
 } from "./timeline.js";
 import { formatDuration } from "./utils.js";
 import { renderEventDetailPanel } from "./detail-renderer.js";
-import { initWebSocketSync, isConnected, sendEventsToServer, sendDeleteToServer, sendClearToServer } from "./sync.js";
+import { initWebSocketSync, isConnected, sendEventsToServer, sendDeleteToServer, sendClearToServer, sendAnnotationToServer, sendDeleteAnnotationToServer } from "./sync.js";
 import { state } from "./state.js";
+import { TECHNIQUES } from "./mitre.js";
 
 // DOM Elements
 const dropZone = document.getElementById('drop-zone');
@@ -105,6 +106,26 @@ function subscribeToState() {
 
     state.on('usercount:changed', (count) => {
         document.getElementById('stat-users').textContent = count;
+    });
+
+    state.on('annotation:updated', (eventId) => {
+        // Refresh detail panel if showing the annotated event
+        if (currentDetailEvent && currentDetailEvent.id === eventId) {
+            showEventDetail(currentDetailEvent);
+        }
+        // Re-render timeline to update annotation markers
+        if (state.events.length > 0) {
+            renderTimelineVisualization(state.events, state.hostRegistry, state.connections);
+        }
+    });
+
+    state.on('annotation:deleted', (eventId) => {
+        if (currentDetailEvent && currentDetailEvent.id === eventId) {
+            showEventDetail(currentDetailEvent);
+        }
+        if (state.events.length > 0) {
+            renderTimelineVisualization(state.events, state.hostRegistry, state.connections);
+        }
     });
 }
 
@@ -302,15 +323,21 @@ function setupSidebar() {
     });
 }
 
+// Track currently displayed event for annotation refresh
+let currentDetailEvent = null;
+
 /**
  * Displays the event detail panel with information about the clicked event.
  *
  * @param {Object} event - The parsed event object to display
  */
 function showEventDetail(event) {
-    detailContent.innerHTML = renderEventDetailPanel(event);
+    currentDetailEvent = event;
+    const annotation = state.annotations.get(event.id) || null;
+    detailContent.innerHTML = renderEventDetailPanel(event, annotation);
     eventDetail.hidden = false;
 
+    // Delete event button
     const deleteBtn = document.getElementById('delete-event-btn');
     if (deleteBtn) {
         deleteBtn.addEventListener('click', () => {
@@ -321,6 +348,56 @@ function showEventDetail(event) {
                 } else {
                     state.deleteEvent(eventId);
                 }
+            }
+        });
+    }
+
+    // Tactic dropdown changes technique options
+    const tacticSelect = document.getElementById('annotation-tactic');
+    const techniqueSelect = document.getElementById('annotation-technique');
+    if (tacticSelect && techniqueSelect) {
+        tacticSelect.addEventListener('change', () => {
+            const tacticId = tacticSelect.value;
+            let options = '<option value="">-- Select Technique --</option>';
+            if (tacticId && TECHNIQUES[tacticId]) {
+                for (const tech of TECHNIQUES[tacticId]) {
+                    options += `<option value="${tech.id}">${tech.id} - ${tech.name}</option>`;
+                }
+            }
+            techniqueSelect.innerHTML = options;
+        });
+    }
+
+    // Save annotation button
+    const saveAnnotationBtn = document.getElementById('save-annotation-btn');
+    if (saveAnnotationBtn) {
+        saveAnnotationBtn.addEventListener('click', () => {
+            const comment = document.getElementById('annotation-comment').value;
+            const mitreTactic = document.getElementById('annotation-tactic').value;
+            const mitreTechnique = document.getElementById('annotation-technique').value;
+
+            const annotationData = { comment, mitreTactic, mitreTechnique };
+
+            if (isConnected()) {
+                sendAnnotationToServer(event.id, annotationData);
+            } else {
+                state.setAnnotation(event.id, {
+                    eventId: event.id,
+                    ...annotationData,
+                    updatedAt: Date.now()
+                });
+            }
+        });
+    }
+
+    // Delete annotation button
+    const deleteAnnotationBtn = document.getElementById('delete-annotation-btn');
+    if (deleteAnnotationBtn) {
+        deleteAnnotationBtn.addEventListener('click', () => {
+            if (isConnected()) {
+                sendDeleteAnnotationToServer(event.id);
+            } else {
+                state.deleteAnnotation(event.id);
             }
         });
     }
@@ -350,8 +427,12 @@ function exportTimeline() {
         return;
     }
 
-    const rawEvents = state.events.map(e => e.raw);
-    const jsonString = JSON.stringify(rawEvents, null, 2);
+    const exportData = {
+        exportedAt: new Date().toISOString(),
+        events: state.events.map(e => e.raw),
+        annotations: Object.fromEntries(state.annotations)
+    };
+    const jsonString = JSON.stringify(exportData, null, 2);
     const blob = new Blob([jsonString], {type: 'application/json'});
     const url = URL.createObjectURL(blob);
 

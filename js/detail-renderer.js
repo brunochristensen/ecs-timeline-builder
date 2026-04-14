@@ -1,5 +1,6 @@
 import {escapeHtml, formatKey} from "./utils.js";
 import {getNestedValue} from "./parser.js";
+import {TACTICS, TECHNIQUES, getTacticName, getTechniqueName} from "./mitre.js";
 
 /**
  * ECS Timeline Builder - Event Detail Panel Renderer
@@ -190,13 +191,66 @@ function renderSection(title, data) {
 }
 
 /**
+ * Renders the annotation form HTML for an event.
+ *
+ * @param {string} eventId - The event ID
+ * @param {Object|null} annotation - Existing annotation, or null
+ * @returns {string} HTML string for the annotation section
+ */
+function renderAnnotationForm(eventId, annotation) {
+    const comment = annotation ? escapeHtml(annotation.comment || '') : '';
+    const selectedTactic = annotation ? annotation.mitreTactic || '' : '';
+    const selectedTechnique = annotation ? annotation.mitreTechnique || '' : '';
+
+    let tacticOptions = '<option value="">-- Select Tactic --</option>';
+    for (const tactic of TACTICS) {
+        const selected = tactic.id === selectedTactic ? ' selected' : '';
+        tacticOptions += `<option value="${tactic.id}"${selected}>${escapeHtml(tactic.id)} - ${escapeHtml(tactic.name)}</option>`;
+    }
+
+    let techniqueOptions = '<option value="">-- Select Technique --</option>';
+    if (selectedTactic && TECHNIQUES[selectedTactic]) {
+        for (const tech of TECHNIQUES[selectedTactic]) {
+            const selected = tech.id === selectedTechnique ? ' selected' : '';
+            techniqueOptions += `<option value="${tech.id}"${selected}>${escapeHtml(tech.id)} - ${escapeHtml(tech.name)}</option>`;
+        }
+    }
+
+    let html = `
+        <div class="detail-section annotation-section">
+            <div class="detail-section-title">Annotation</div>
+            <div class="annotation-form" data-event-id="${escapeHtml(String(eventId))}">
+                <label class="annotation-label">Comment</label>
+                <textarea id="annotation-comment" class="annotation-input" rows="3" placeholder="Analyst notes...">${comment}</textarea>
+                <label class="annotation-label">MITRE Tactic</label>
+                <select id="annotation-tactic" class="annotation-select">${tacticOptions}</select>
+                <label class="annotation-label">MITRE Technique</label>
+                <select id="annotation-technique" class="annotation-select">${techniqueOptions}</select>
+                <div class="annotation-actions">
+                    <button id="save-annotation-btn" class="btn-save-annotation">Save Annotation</button>`;
+
+    if (annotation) {
+        html += `
+                    <button id="delete-annotation-btn" class="btn-delete-annotation">Remove Annotation</button>`;
+    }
+
+    html += `
+                </div>
+            </div>
+        </div>`;
+
+    return html;
+}
+
+/**
  * Renders the complete event detail panel HTML for display in the sidebar.
- * Includes summary, categorized ECS field sections, and raw JSON view.
+ * Includes summary, annotation form, categorized ECS field sections, and raw JSON view.
  *
  * @param {Object} event - Parsed event object with summary, timestamp, category, details, and raw properties
+ * @param {Object|null} annotation - Existing annotation for this event, or null
  * @returns {string} Complete HTML string for the detail panel content
  */
-export function renderEventDetailPanel(event) {
+export function renderEventDetailPanel(event, annotation) {
     let html = '';
 
     // Summary + delete button
@@ -218,6 +272,9 @@ export function renderEventDetailPanel(event) {
                 <button id="delete-event-btn" class="btn-delete" data-event-id="${escapeHtml(String(event.id))}">Delete Event</button>
             </div>
         `;
+
+    // Annotation form
+    html += renderAnnotationForm(event.id, annotation || null);
 
     // Render each detail section by reading directly from raw ECS data
     for (const section of ECS_DETAIL_SECTIONS) {
