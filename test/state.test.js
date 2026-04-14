@@ -205,6 +205,101 @@ describe('TimelineState', () => {
 
     });
 
+    describe('annotations', () => {
+
+        it('should start with an empty annotations map', () => {
+            assert.strictEqual(state.annotations.size, 0);
+        });
+
+        it('setAnnotation() should store an annotation keyed by eventId', () => {
+            state.setAnnotation('evt-1', {
+                eventId: 'evt-1',
+                comment: 'note',
+                mitreTactic: 'TA0001',
+                mitreTechnique: 'T1078',
+                updatedAt: 1
+            });
+
+            assert.strictEqual(state.annotations.size, 1);
+            assert.strictEqual(state.annotations.get('evt-1').comment, 'note');
+        });
+
+        it('setAnnotation() should emit annotation:updated with eventId and annotation', () => {
+            let receivedId = null;
+            let receivedAnn = null;
+            const listener = (id, ann) => { receivedId = id; receivedAnn = ann; };
+            state.on('annotation:updated', listener);
+
+            const annotation = { eventId: 'evt-1', comment: 'hi', mitreTactic: '', mitreTechnique: '', updatedAt: 1 };
+            state.setAnnotation('evt-1', annotation);
+
+            assert.strictEqual(receivedId, 'evt-1');
+            assert.strictEqual(receivedAnn, annotation);
+            state.off('annotation:updated', listener);
+        });
+
+        it('setAnnotation() should overwrite an existing annotation for the same event', () => {
+            state.setAnnotation('evt-1', { eventId: 'evt-1', comment: 'first', mitreTactic: '', mitreTechnique: '', updatedAt: 1 });
+            state.setAnnotation('evt-1', { eventId: 'evt-1', comment: 'second', mitreTactic: '', mitreTechnique: '', updatedAt: 2 });
+
+            assert.strictEqual(state.annotations.size, 1);
+            assert.strictEqual(state.annotations.get('evt-1').comment, 'second');
+        });
+
+        it('deleteAnnotation() should remove an existing annotation and return true', () => {
+            state.setAnnotation('evt-1', { eventId: 'evt-1', comment: 'x', mitreTactic: '', mitreTechnique: '', updatedAt: 1 });
+
+            const result = state.deleteAnnotation('evt-1');
+
+            assert.strictEqual(result, true);
+            assert.strictEqual(state.annotations.size, 0);
+        });
+
+        it('deleteAnnotation() should return false for a nonexistent annotation', () => {
+            assert.strictEqual(state.deleteAnnotation('ghost'), false);
+        });
+
+        it('deleteAnnotation() should emit annotation:deleted only when an annotation existed', () => {
+            let emittedCount = 0;
+            const listener = () => { emittedCount++; };
+            state.on('annotation:deleted', listener);
+
+            state.deleteAnnotation('ghost'); // no-op
+            state.setAnnotation('evt-1', { eventId: 'evt-1', comment: 'x', mitreTactic: '', mitreTechnique: '', updatedAt: 1 });
+            state.deleteAnnotation('evt-1');
+
+            assert.strictEqual(emittedCount, 1);
+            state.off('annotation:deleted', listener);
+        });
+
+        it('setEvents() should accept annotations and populate the annotations map', () => {
+            state.setEvents(
+                [{ '@timestamp': '2024-01-15T10:00:00Z', host: { hostname: 'h1' }, event: { id: 'evt-1' } }],
+                { 'evt-1': { eventId: 'evt-1', comment: 'synced', mitreTactic: 'TA0003', mitreTechnique: '', updatedAt: 1 } }
+            );
+
+            assert.strictEqual(state.annotations.size, 1);
+            assert.strictEqual(state.annotations.get('evt-1').comment, 'synced');
+        });
+
+        it('setEvents() should default annotations to empty map when omitted', () => {
+            state.setAnnotation('old', { eventId: 'old', comment: 'prior', mitreTactic: '', mitreTechnique: '', updatedAt: 1 });
+
+            state.setEvents([{ '@timestamp': '2024-01-15T10:00:00Z', host: { hostname: 'h1' } }]);
+
+            assert.strictEqual(state.annotations.size, 0);
+        });
+
+        it('clear() should reset annotations', () => {
+            state.setAnnotation('evt-1', { eventId: 'evt-1', comment: 'x', mitreTactic: '', mitreTechnique: '', updatedAt: 1 });
+
+            state.clear();
+
+            assert.strictEqual(state.annotations.size, 0);
+        });
+
+    });
+
     describe('connection tracking', () => {
 
         it('should track connected state', () => {

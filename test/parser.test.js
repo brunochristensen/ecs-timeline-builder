@@ -110,6 +110,83 @@ describe('ECSParser', () => {
 
     });
 
+    describe('event ID generation', () => {
+
+        it('should prefer Elasticsearch _id over generated ID', () => {
+            const result = parseEvents([{
+                '_id': 'es-wrapper-id',
+                '_source': {
+                    '@timestamp': '2024-01-15T10:30:00.000Z',
+                    'event': { 'id': 'nested-event-id' },
+                    'host': { 'hostname': 'h1' }
+                }
+            }]);
+
+            assert.strictEqual(result[0].id, 'es-wrapper-id');
+        });
+
+        it('should use event.id when _id is absent', () => {
+            const result = parseEvents([{
+                '@timestamp': '2024-01-15T10:30:00.000Z',
+                'event': { 'id': 'nested-event-id' },
+                'host': { 'hostname': 'h1' }
+            }]);
+
+            assert.strictEqual(result[0].id, 'nested-event-id');
+        });
+
+        it('should generate a deterministic ID from timestamp, host, action, category', () => {
+            const event = {
+                '@timestamp': '2024-01-15T10:30:00.000Z',
+                'host': { 'hostname': 'web-01' },
+                'event': { 'action': 'connection_established', 'category': ['network'] }
+            };
+
+            const a = parseEvents([event]);
+            const b = parseEvents([event]);
+
+            assert.strictEqual(a[0].id, b[0].id);
+            assert.ok(a[0].id.includes('web-01'));
+            assert.ok(a[0].id.includes('connection_established'));
+            assert.ok(a[0].id.includes('network'));
+        });
+
+        it('should produce different IDs for events differing only by timestamp', () => {
+            const e1 = {
+                '@timestamp': '2024-01-15T10:30:00.000Z',
+                'host': { 'hostname': 'h1' },
+                'event': { 'action': 'login' }
+            };
+            const e2 = { ...e1, '@timestamp': '2024-01-15T10:31:00.000Z' };
+
+            const result = parseEvents([e1, e2]);
+
+            assert.notStrictEqual(result[0].id, result[1].id);
+        });
+
+        it('should produce different IDs for events differing only by host', () => {
+            const ts = '2024-01-15T10:30:00.000Z';
+            const result = parseEvents([
+                { '@timestamp': ts, 'host': { 'hostname': 'h1' }, 'event': { 'action': 'x' } },
+                { '@timestamp': ts, 'host': { 'hostname': 'h2' }, 'event': { 'action': 'x' } }
+            ]);
+
+            assert.notStrictEqual(result[0].id, result[1].id);
+        });
+
+        it('should not depend on array position (parse order stability)', () => {
+            const e1 = { '@timestamp': '2024-01-15T10:30:00.000Z', 'host': { 'hostname': 'h1' }, 'event': { 'action': 'a' } };
+            const e2 = { '@timestamp': '2024-01-15T10:31:00.000Z', 'host': { 'hostname': 'h2' }, 'event': { 'action': 'b' } };
+
+            const forward = parseEvents([e1, e2]);
+            const reverse = parseEvents([e2, e1]);
+
+            assert.strictEqual(forward.find(e => e.host.hostname === 'h1').id, reverse.find(e => e.host.hostname === 'h1').id);
+            assert.strictEqual(forward.find(e => e.host.hostname === 'h2').id, reverse.find(e => e.host.hostname === 'h2').id);
+        });
+
+    });
+
     describe('category extraction', () => {
 
         it('should categorize network events', () => {
