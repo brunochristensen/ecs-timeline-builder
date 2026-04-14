@@ -382,6 +382,82 @@ body {
     color: var(--accent-primary);
 }
 
+/* MITRE Coverage */
+.coverage-content {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    max-height: 320px;
+    overflow-y: auto;
+    padding-right: 4px;
+}
+
+.coverage-empty {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    font-style: italic;
+}
+
+.coverage-host {
+    padding: 6px 8px;
+    background: var(--bg-tertiary);
+    border-radius: 6px;
+    border-left: 2px solid var(--accent-primary);
+}
+
+.coverage-host.host-no-annotations {
+    border-left-color: #ff6b6b;
+    opacity: 0.85;
+}
+
+.coverage-host-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 6px;
+    font-size: 0.75rem;
+}
+
+.coverage-host-name {
+    color: var(--text-primary);
+    font-weight: 500;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 70%;
+}
+
+.coverage-host-count {
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--text-secondary);
+    font-size: 0.7rem;
+}
+
+.coverage-tactics {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 3px;
+}
+
+.tactic-chip {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.6rem;
+    padding: 2px 5px;
+    border-radius: 3px;
+    cursor: help;
+    user-select: none;
+}
+
+.tactic-chip.covered {
+    background: #2d7a3e;
+    color: #e8ffe8;
+}
+
+.tactic-chip.missing {
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--text-secondary);
+}
+
 /* Sidebar Buttons */
 .sidebar-btn {
     display: flex;
