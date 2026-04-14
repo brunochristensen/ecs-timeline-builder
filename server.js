@@ -10,7 +10,7 @@ import WebSocket, { WebSocketServer } from 'ws';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { EventStore } from './server/event-store.js';
-import { loadEvents, saveEvents } from './server/persistence.js';
+import { loadData, saveData } from './server/persistence.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -64,7 +64,8 @@ wss.on('connection', (ws) => {
     // Send current state to new client
     ws.send(JSON.stringify({
         type: 'SYNC',
-        events: store.getAll()
+        events: store.getAll(),
+        annotations: store.getAnnotations()
     }));
 
     // Broadcast user count update
@@ -123,10 +124,45 @@ wss.on('connection', (ws) => {
                     break;
                 }
 
+                case 'ANNOTATE_EVENT': {
+                    if (!message.eventId || typeof message.eventId !== 'string') {
+                        console.warn('ANNOTATE_EVENT: missing or invalid eventId');
+                        break;
+                    }
+                    const annotation = store.setAnnotation(message.eventId, {
+                        comment: message.comment,
+                        mitreTactic: message.mitreTactic,
+                        mitreTechnique: message.mitreTechnique
+                    });
+                    isDirty = true;
+                    broadcastAll({
+                        type: 'ANNOTATION_UPDATED',
+                        eventId: message.eventId,
+                        annotation
+                    });
+                    break;
+                }
+
+                case 'DELETE_ANNOTATION': {
+                    if (!message.eventId || typeof message.eventId !== 'string') {
+                        console.warn('DELETE_ANNOTATION: missing or invalid eventId');
+                        break;
+                    }
+                    if (store.deleteAnnotation(message.eventId)) {
+                        isDirty = true;
+                        broadcastAll({
+                            type: 'ANNOTATION_DELETED',
+                            eventId: message.eventId
+                        });
+                    }
+                    break;
+                }
+
                 case 'REQUEST_SYNC': {
                     ws.send(JSON.stringify({
                         type: 'SYNC',
-                        events: store.getAll()
+                        events: store.getAll(),
+                        annotations: store.getAnnotations()
                     }));
                     break;
                 }
@@ -175,12 +211,13 @@ app.get('/api/events', (req, res) => {
 });
 
 // Load data on startup
-store.load(loadEvents(DATA_FILE));
+const loaded = loadData(DATA_FILE);
+store.load(loaded.events, loaded.annotations);
 
 // Auto-save interval
 setInterval(() => {
     if (isDirty) {
-        saveEvents(DATA_FILE, store.getAll());
+        saveData(DATA_FILE, store.getAll(), store.getAnnotations());
         isDirty = false;
     }
 }, SAVE_INTERVAL);
@@ -205,7 +242,7 @@ setInterval(() => {
 process.on('SIGINT', () => {
     console.log('\nShutting down...');
     if (isDirty) {
-        saveEvents(DATA_FILE, store.getAll());
+        saveData(DATA_FILE, store.getAll(), store.getAnnotations());
     }
     process.exit(0);
 });
@@ -213,7 +250,7 @@ process.on('SIGINT', () => {
 process.on('SIGTERM', () => {
     console.log('\nShutting down...');
     if (isDirty) {
-        saveEvents(DATA_FILE, store.getAll());
+        saveData(DATA_FILE, store.getAll(), store.getAnnotations());
     }
     process.exit(0);
 });
