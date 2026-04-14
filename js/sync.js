@@ -116,6 +116,12 @@ function handleMessage(message) {
             state.setUserCount(message.count);
             break;
 
+        case 'PING':
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ type: 'PONG' }));
+            }
+            break;
+
         default:
             console.warn('Unknown message type:', message.type);
     }
