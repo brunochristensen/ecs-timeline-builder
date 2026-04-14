@@ -23,6 +23,8 @@ const wss = new WebSocketServer({ server });
 const PORT = process.env.PORT || 12345;
 const DATA_FILE = process.env.DATA_FILE || './data/timeline.json';
 const SAVE_INTERVAL = 30000;
+const HEARTBEAT_INTERVAL = 30000;
+const HEARTBEAT_TIMEOUT = 90000;
 
 // State
 const store = new EventStore();
@@ -55,6 +57,9 @@ function broadcastAll(message) {
 // WebSocket connection handling
 wss.on('connection', (ws) => {
     console.log('Client connected. Total clients:', wss.clients.size);
+
+    // Track last pong for heartbeat
+    ws.lastPong = Date.now();
 
     // Send current state to new client
     ws.send(JSON.stringify({
@@ -113,6 +118,11 @@ wss.on('connection', (ws) => {
                     break;
                 }
 
+                case 'PONG': {
+                    ws.lastPong = Date.now();
+                    break;
+                }
+
                 default:
                     console.warn('Unknown message type:', message.type);
             }
@@ -161,6 +171,22 @@ setInterval(() => {
         isDirty = false;
     }
 }, SAVE_INTERVAL);
+
+// Heartbeat: ping all clients, terminate stale connections
+setInterval(() => {
+    const now = Date.now();
+    wss.clients.forEach(client => {
+        if (client.readyState !== WebSocket.OPEN) return;
+
+        if (now - client.lastPong > HEARTBEAT_TIMEOUT) {
+            console.log('Terminating stale client (no pong received)');
+            client.terminate();
+            return;
+        }
+
+        client.send(JSON.stringify({ type: 'PING' }));
+    });
+}, HEARTBEAT_INTERVAL);
 
 // Save on shutdown
 process.on('SIGINT', () => {
