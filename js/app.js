@@ -33,6 +33,14 @@ const zoomInBtn = document.getElementById('zoom-in');
 const zoomOutBtn = document.getElementById('zoom-out');
 const zoomResetBtn = document.getElementById('zoom-reset');
 
+// Status bar elements
+const statusLed = document.getElementById('status-led');
+const statusLink = document.getElementById('status-link');
+const statusCase = document.getElementById('status-case');
+const statusEventsEl = document.getElementById('status-events');
+const statusHostsEl = document.getElementById('status-hosts');
+const statusSyncEl = document.getElementById('status-sync');
+
 // Currently displayed event in the detail panel (for annotation refresh)
 let currentDetailEvent = null;
 
@@ -49,10 +57,35 @@ function init() {
     setupDetailPanel();
     setupSidebar();
     setupHeaderControls();
+    initCaseId();
     subscribeToState();
     initGapDetection();
 
     initWebSocketSync();
+}
+
+/**
+ * Generates a session-scoped case identifier for the status bar.
+ * Format: CASE-YYYY-NNNN where NNNN is the current day-of-year.
+ */
+function initCaseId() {
+    const now = new Date();
+    const start = new Date(now.getFullYear(), 0, 0);
+    const dayOfYear = Math.floor((now - start) / 86400000);
+    const padded = String(dayOfYear).padStart(4, '0');
+    if (statusCase) statusCase.textContent = `CASE-${now.getFullYear()}-${padded}`;
+}
+
+/**
+ * Updates the last-sync timestamp in the status bar to the current time.
+ */
+function stampSync() {
+    if (!statusSyncEl) return;
+    const now = new Date();
+    const hh = String(now.getHours()).padStart(2, '0');
+    const mm = String(now.getMinutes()).padStart(2, '0');
+    const ss = String(now.getSeconds()).padStart(2, '0');
+    statusSyncEl.textContent = `${hh}:${mm}:${ss}Z`;
 }
 
 /**
@@ -71,6 +104,7 @@ function refreshTimelineUi() {
         resetStats();
         clearTimelineVisualization();
     }
+    stampSync();
 }
 
 /**
@@ -101,8 +135,15 @@ function subscribeToState() {
     });
 
     state.on('connection:changed', (connected) => {
+        if (statusLed) {
+            statusLed.classList.toggle('connected', connected);
+            statusLed.classList.toggle('disconnected', !connected);
+        }
+        if (statusLink) {
+            statusLink.textContent = connected ? 'ACTIVE' : 'RECONNECTING';
+        }
         if (!connected) {
-            document.getElementById('stat-users').textContent = 'Reconnecting...';
+            document.getElementById('stat-users').textContent = '—';
         }
     });
 
@@ -128,7 +169,9 @@ function resetStats() {
     document.getElementById('stat-events').textContent = '0';
     document.getElementById('stat-hosts').textContent = '0';
     document.getElementById('stat-connections').textContent = '0';
-    document.getElementById('stat-timespan').textContent = '-';
+    document.getElementById('stat-timespan').textContent = '—';
+    if (statusEventsEl) statusEventsEl.textContent = '0';
+    if (statusHostsEl) statusHostsEl.textContent = '0';
 }
 
 /**
@@ -138,9 +181,10 @@ function updateStats() {
     const events = state.events;
     const hostRegistry = state.hostRegistry;
     const connections = state.connections;
+    const hostCount = hostRegistry.getHostList().length;
 
     document.getElementById('stat-events').textContent = events.length;
-    document.getElementById('stat-hosts').textContent = hostRegistry.getHostList().length;
+    document.getElementById('stat-hosts').textContent = hostCount;
     document.getElementById('stat-connections').textContent = connections.length;
 
     const timestamps = events.map(e => e.timestamp).sort((a, b) => a - b);
@@ -148,8 +192,11 @@ function updateStats() {
         const duration = timestamps[timestamps.length - 1] - timestamps[0];
         document.getElementById('stat-timespan').textContent = formatDuration(duration);
     } else {
-        document.getElementById('stat-timespan').textContent = '-';
+        document.getElementById('stat-timespan').textContent = '—';
     }
+
+    if (statusEventsEl) statusEventsEl.textContent = events.length;
+    if (statusHostsEl) statusHostsEl.textContent = hostCount;
 }
 
 /**
@@ -310,8 +357,12 @@ function setupDetailPanel() {
  * Attaches click handler to sidebar collapse/expand toggle.
  */
 function setupSidebar() {
+    const timelineContainer = document.getElementById('timeline-container');
+    const appContainer = document.querySelector('.app-container');
     sidebarToggle.addEventListener('click', () => {
-        sidebar.classList.toggle('collapsed');
+        const collapsed = sidebar.classList.toggle('collapsed');
+        if (timelineContainer) timelineContainer.classList.toggle('sidebar-collapsed', collapsed);
+        if (appContainer) appContainer.classList.toggle('sidebar-collapsed', collapsed);
     });
 }
 

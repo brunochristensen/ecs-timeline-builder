@@ -89,8 +89,8 @@ function render() {
         for (const tactic of TACTICS) {
             const covered = tagged.has(tactic.id);
             const chipClass = covered ? 'tactic-chip covered' : 'tactic-chip missing';
-            const title = `${tactic.id} — ${getTacticName(tactic.id)}${covered ? ' (tagged)' : ' (not tagged)'}`;
-            html += `<span class="${chipClass}" title="${escapeHtml(title)}">${escapeHtml(tactic.id)}</span>`;
+            const title = `${tactic.id} · ${getTacticName(tactic.id)}${covered ? ' · tagged' : ' · gap'}`;
+            html += `<span class="${chipClass}" title="${escapeHtml(title)}"></span>`;
         }
 
         html += `

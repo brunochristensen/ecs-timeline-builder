@@ -148,6 +148,9 @@ function renderLanes(hosts, yScale, width) {
     lanesEnter.append('rect')
         .attr('class', 'lane-bg');
 
+    lanesEnter.append('line')
+        .attr('class', 'swim-lane-midline');
+
     lanesEnter.append('text')
         .attr('class', 'swim-lane-label');
 
@@ -162,18 +165,24 @@ function renderLanes(hosts, yScale, width) {
         .attr('y', d => yScale(d.hostname))
         .attr('width', width)
         .attr('height', yScale.bandwidth())
-        .attr('fill', (d, i) => i % 2 === 0 ? 'rgba(255,255,255,0.02)' : 'transparent');
+        .attr('fill', (d, i) => i % 2 === 0 ? 'rgba(255,255,255,0.008)' : 'transparent');
+
+    lanesUpdate.select('.swim-lane-midline')
+        .attr('x1', config.margin.left)
+        .attr('x2', width - config.margin.right)
+        .attr('y1', d => yScale(d.hostname) + yScale.bandwidth() / 2)
+        .attr('y2', d => yScale(d.hostname) + yScale.bandwidth() / 2);
 
     lanesUpdate.select('.swim-lane-label')
-        .attr('x', 44)
+        .attr('x', 20)
         .attr('y', d => yScale(d.hostname) + yScale.bandwidth() / 2)
         .attr('dy', '-0.2em')
         .text(d => d.hostname);
 
     lanesUpdate.select('.swim-lane-ip')
-        .attr('x', 44)
+        .attr('x', 20)
         .attr('y', d => yScale(d.hostname) + yScale.bandwidth() / 2)
-        .attr('dy', '1em')
+        .attr('dy', '1.1em')
         .text(d => d.ips.length > 0 ? d.ips[0] : '');
 
     // Exit
@@ -327,16 +336,15 @@ function renderEvents(events, xScale, yScale, hostRegistry, annotations) {
     const dots = eventsGroup.selectAll('.event-dot')
         .data(allEvents, d => d.id);
 
-    function dotClass(d) {
-        const base = `event-dot ${d.category}`;
-        return annotations && annotations.has(d.id) ? `${base} annotated` : base;
-    }
+    const isAnnotated = d => annotations && annotations.has(d.id);
+    const dotClass  = d => isAnnotated(d) ? `event-dot ${d.category} annotated` : `event-dot ${d.category}`;
+    const dotRadius = d => isAnnotated(d) ? 5 : 3.5;
 
     // Enter
     dots.enter()
         .append('circle')
         .attr('class', dotClass)
-        .attr('r', config.eventRadius)
+        .attr('r', dotRadius)
         .attr('cx', d => xScale(d.timestamp))
         .attr('cy', d => yScale(d.renderHost) + yScale.bandwidth() / 2)
         .on('mouseover', showEventTooltip)
@@ -351,6 +359,7 @@ function renderEvents(events, xScale, yScale, hostRegistry, annotations) {
     // Update
     dots.attr('cx', d => xScale(d.timestamp))
         .attr('cy', d => yScale(d.renderHost) + yScale.bandwidth() / 2)
+        .attr('r', dotRadius)
         .attr('class', dotClass);
 
     // Exit

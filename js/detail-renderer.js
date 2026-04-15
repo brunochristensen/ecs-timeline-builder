@@ -168,10 +168,11 @@ function hasValues(obj) {
  * @param {Object} data - Key-value pairs to display in this section
  * @returns {string} HTML string for the detail section
  */
-function renderSection(title, data) {
+function renderSection(title, data, sectionNum) {
+    const num = String(sectionNum).padStart(2, '0');
     let html = `
             <div class="detail-section">
-                <div class="detail-section-title">${escapeHtml(title)}</div>
+                <div class="detail-section-title" data-num="${num}">${escapeHtml(title)}</div>
         `;
 
     for (const [key, value] of Object.entries(data)) {
@@ -179,7 +180,7 @@ function renderSection(title, data) {
             const displayValue = Array.isArray(value) ? value.join(', ') : value;
             html += `
                     <div class="detail-field">
-                        <span class="detail-key">${escapeHtml(formatKey(key))}:</span>
+                        <span class="detail-key">${escapeHtml(formatKey(key))}</span>
                         <span class="detail-value">${escapeHtml(String(displayValue))}</span>
                     </div>
                 `;
@@ -226,7 +227,7 @@ function renderAnnotationForm(eventId, annotation) {
 
     let html = `
         <div class="detail-section annotation-section">
-            <div class="detail-section-title">Annotation</div>
+            <div class="detail-section-title" data-num="§">Annotation</div>
             <div class="annotation-form" data-event-id="${escapeHtml(String(eventId))}">
                 <label class="annotation-label">Comment</label>
                 <textarea id="annotation-comment" class="annotation-input" rows="3" placeholder="Analyst notes...">${comment}</textarea>
@@ -260,21 +261,22 @@ function renderAnnotationForm(eventId, annotation) {
  */
 export function renderEventDetailPanel(event, annotation) {
     let html = '';
+    let sectionNum = 1;
 
-    // Summary + delete button
+    // Summary
     html += `
             <div class="detail-section">
-                <div class="detail-section-title">Summary</div>
+                <div class="detail-section-title" data-num="${String(sectionNum++).padStart(2, '0')}">Summary</div>
                 <div class="detail-field">
-                    <span class="detail-key">Event:</span>
+                    <span class="detail-key">Event</span>
                     <span class="detail-value">${escapeHtml(event.summary)}</span>
                 </div>
                 <div class="detail-field">
-                    <span class="detail-key">Timestamp:</span>
+                    <span class="detail-key">Timestamp</span>
                     <span class="detail-value">${event.timestamp.toISOString()}</span>
                 </div>
                 <div class="detail-field">
-                    <span class="detail-key">Category:</span>
+                    <span class="detail-key">Category</span>
                     <span class="detail-value">${event.category}</span>
                 </div>
                 <button id="delete-event-btn" class="btn-delete" data-event-id="${escapeHtml(String(event.id))}">Delete Event</button>
@@ -294,14 +296,14 @@ export function renderEventDetailPanel(event, annotation) {
             data[key] = getNestedValue(event.raw, path);
         }
         if (hasValues(data)) {
-            html += renderSection(section.title, data);
+            html += renderSection(section.title, data, sectionNum++);
         }
     }
 
     // Raw JSON
     html += `
             <div class="detail-section">
-                <div class="detail-section-title">Raw Event</div>
+                <div class="detail-section-title" data-num="${String(sectionNum).padStart(2, '0')}">Raw Event</div>
                 <pre class="detail-raw">${escapeHtml(JSON.stringify(event.raw, null, 2))}</pre>
             </div>
         `;
