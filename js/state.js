@@ -46,6 +46,7 @@ class TimelineState extends EventEmitter {
         if (index === -1) return null;
 
         const [removed] = this.#events.splice(index, 1);
+        this.#annotations.delete(eventId);
         this.#rebuild();
         this.emit('event:deleted', eventId);
         return removed;
@@ -72,11 +73,13 @@ class TimelineState extends EventEmitter {
     }
 
     setConnected(connected) {
+        if (this.#connected === connected) return;
         this.#connected = connected;
         this.emit('connection:changed', connected);
     }
 
     setUserCount(count) {
+        if (this.#userCount === count) return;
         this.#userCount = count;
         this.emit('usercount:changed', count);
     }

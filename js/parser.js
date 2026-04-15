@@ -77,12 +77,9 @@ function parseTimestamp(event) {
         'event.end'             // When event ended (fallback)
     ]);
 
-    if (tsValue) {
-        const date = new Date(tsValue);
-        return isNaN(date.getTime()) ? null : date;
-    } else {
-        return null;
-    }
+    if (!tsValue) return null;
+    const date = new Date(tsValue);
+    return isNaN(date.getTime()) ? null : date;
 }
 
 /**
@@ -170,13 +167,8 @@ export const CATEGORY_MAP = {
  * Extract event category for filtering and styling
  */
 function extractCategory(event) {
-    const category = getFirstValue(event, [
-        'event.category',
-        'event.type'
-    ]);
-
-    const categoryValue = Array.isArray(category) ? category[0] : category;
-    return CATEGORY_MAP[categoryValue] || 'other';
+    const category = getFirstString(event, ['event.category', 'event.type']);
+    return CATEGORY_MAP[category] || 'other';
 }
 
 /**
@@ -201,14 +193,8 @@ function hasConnection(event) {
  * Uses only ECS standard fields
  */
 function extractSummary(event) {
-    // ECS event.action is the primary descriptor
-    const action = getFirstValue(event, [
-        'event.action',         // ECS: Action captured by the event
-        'event.type'            // ECS: Event type (array)
-    ]);
-
-    // Get action as string
-    const actionStr = Array.isArray(action) ? action[0] : action;
+    // ECS event.action is the primary descriptor; event.type is the array fallback
+    const actionStr = getFirstString(event, ['event.action', 'event.type']);
 
     // ECS process.* fields (use getNestedString to handle ES array values)
     const processName = getNestedString(event, 'process.name');

@@ -213,18 +213,35 @@ function renderAxis(xScale, height) {
 function renderGrid(xScale, yScale, width, height) {
     const gridGroup = mainGroup.select('.grid-group');
     gridGroup.selectAll('*').remove();
+    drawGridLines(gridGroup, xScale, height);
+}
 
-    // Vertical grid lines
+/**
+ * Draws vertical grid lines for the current x scale onto the supplied group.
+ * Used by both the initial render and the zoom handler.
+ */
+function drawGridLines(gridGroup, xScale, height) {
     const ticks = xScale.ticks(20);
     gridGroup.selectAll('.grid-line')
         .data(ticks)
-        .enter()
-        .append('line')
+        .join('line')
         .attr('class', 'grid-line')
         .attr('x1', d => xScale(d))
         .attr('x2', d => xScale(d))
         .attr('y1', config.margin.top)
         .attr('y2', height - config.margin.bottom);
+}
+
+/**
+ * Builds the SVG path string for a cross-host connection arc.
+ */
+function connectionPath(d, xScale, yScale) {
+    const x = xScale(d.timestamp);
+    const y1 = yScale(d.sourceHost) + yScale.bandwidth() / 2;
+    const y2 = yScale(d.destHost) + yScale.bandwidth() / 2;
+    const midY = (y1 + y2) / 2;
+    const curveOffset = Math.abs(y2 - y1) * 0.1;
+    return `M ${x} ${y1} Q ${x + curveOffset} ${midY}, ${x} ${y2}`;
 }
 
 /**
@@ -249,18 +266,7 @@ function renderConnections(connections, xScale, yScale, hostRegistry) {
     lines.enter()
         .append('path')
         .attr('class', 'connection-line')
-        .attr('d', d => {
-            const x = xScale(d.timestamp);
-            const y1 = yScale(d.sourceHost) + yScale.bandwidth() / 2;
-            const y2 = yScale(d.destHost) + yScale.bandwidth() / 2;
-
-            // Draw curved line
-            const midY = (y1 + y2) / 2;
-            const curveOffset = Math.abs(y2 - y1) * 0.1;
-
-            return `M ${x} ${y1}
-                        Q ${x + curveOffset} ${midY}, ${x} ${y2}`;
-        })
+        .attr('d', d => connectionPath(d, xScale, yScale))
         .on('mouseover', showConnectionTooltip)
         .on('mouseout', hideTooltip)
         .on('click', (event, d) => {
@@ -272,17 +278,7 @@ function renderConnections(connections, xScale, yScale, hostRegistry) {
         });
 
     // Update
-    lines.attr('d', d => {
-        const x = xScale(d.timestamp);
-        const y1 = yScale(d.sourceHost) + yScale.bandwidth() / 2;
-        const y2 = yScale(d.destHost) + yScale.bandwidth() / 2;
-
-        const midY = (y1 + y2) / 2;
-        const curveOffset = Math.abs(y2 - y1) * 0.1;
-
-        return `M ${x} ${y1}
-                    Q ${x + curveOffset} ${midY}, ${x} ${y2}`;
-    });
+    lines.attr('d', d => connectionPath(d, xScale, yScale));
 
     // Exit
     lines.exit().remove();
@@ -380,18 +376,7 @@ function handleZoom(event) {
         });
 
     // Update grid
-    const ticks = newXScale.ticks(20);
-    const gridGroup = mainGroup.select('.grid-group');
-    gridGroup.selectAll('.grid-line').remove();
-    gridGroup.selectAll('.grid-line')
-        .data(ticks)
-        .enter()
-        .append('line')
-        .attr('class', 'grid-line')
-        .attr('x1', d => newXScale(d))
-        .attr('x2', d => newXScale(d))
-        .attr('y1', config.margin.top)
-        .attr('y2', currentData.height - config.margin.bottom);
+    drawGridLines(mainGroup.select('.grid-group'), newXScale, currentData.height);
 
     // Update event positions
     mainGroup.select('.events-group')
@@ -401,15 +386,7 @@ function handleZoom(event) {
     // Update connection lines
     mainGroup.select('.connections-group')
         .selectAll('.connection-line')
-        .attr('d', d => {
-            const x = newXScale(d.timestamp);
-            const y1 = currentData.yScale(d.sourceHost) + currentData.yScale.bandwidth() / 2;
-            const y2 = currentData.yScale(d.destHost) + currentData.yScale.bandwidth() / 2;
-            const midY = (y1 + y2) / 2;
-            const curveOffset = Math.abs(y2 - y1) * 0.1;
-
-            return `M ${x} ${y1} Q ${x + curveOffset} ${midY}, ${x} ${y2}`;
-        });
+        .attr('d', d => connectionPath(d, newXScale, currentData.yScale));
 }
 
 /**
@@ -491,7 +468,8 @@ function handleResize() {
         renderTimelineVisualization(
             currentData.events,
             currentData.hostRegistry,
-            currentData.connections
+            currentData.connections,
+            currentData.annotations
         );
     }
 }

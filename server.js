@@ -12,8 +12,7 @@ import { fileURLToPath } from 'url';
 import { EventStore } from './server/event-store.js';
 import { loadData, saveData } from './server/persistence.js';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const app = express();
 const server = http.createServer(app);
@@ -31,7 +30,7 @@ const store = new EventStore();
 let isDirty = false;
 
 /**
- * Broadcast message to all connected clients except sender.
+ * Broadcast a message to connected clients, optionally excluding one (the sender).
  */
 function broadcast(message, excludeWs = null) {
     const msgString = JSON.stringify(message);
@@ -43,15 +42,14 @@ function broadcast(message, excludeWs = null) {
 }
 
 /**
- * Broadcast message to all connected clients.
+ * Builds a full-state SYNC message payload from the store.
  */
-function broadcastAll(message) {
-    const msgString = JSON.stringify(message);
-    wss.clients.forEach(client => {
-        if (client.readyState === WebSocket.OPEN) {
-            client.send(msgString);
-        }
-    });
+function buildSyncMessage() {
+    return {
+        type: 'SYNC',
+        events: store.getAll(),
+        annotations: store.getAnnotations()
+    };
 }
 
 // WebSocket connection handling
@@ -62,14 +60,10 @@ wss.on('connection', (ws) => {
     ws.lastPong = Date.now();
 
     // Send current state to new client
-    ws.send(JSON.stringify({
-        type: 'SYNC',
-        events: store.getAll(),
-        annotations: store.getAnnotations()
-    }));
+    ws.send(JSON.stringify(buildSyncMessage()));
 
     // Broadcast user count update
-    broadcastAll({
+    broadcast({
         type: 'USER_COUNT',
         count: wss.clients.size
     });
@@ -112,7 +106,7 @@ wss.on('connection', (ws) => {
                     const removed = store.deleteEvent(message.eventId);
                     if (removed) {
                         isDirty = true;
-                        broadcastAll({ type: 'EVENT_DELETED', eventId: message.eventId });
+                        broadcast({ type: 'EVENT_DELETED', eventId: message.eventId });
                     }
                     break;
                 }
@@ -120,7 +114,7 @@ wss.on('connection', (ws) => {
                 case 'CLEAR': {
                     store.clear();
                     isDirty = true;
-                    broadcastAll({ type: 'CLEARED' });
+                    broadcast({ type: 'CLEARED' });
                     break;
                 }
 
@@ -135,7 +129,7 @@ wss.on('connection', (ws) => {
                         mitreTechnique: message.mitreTechnique
                     });
                     isDirty = true;
-                    broadcastAll({
+                    broadcast({
                         type: 'ANNOTATION_UPDATED',
                         eventId: message.eventId,
                         annotation
@@ -150,7 +144,7 @@ wss.on('connection', (ws) => {
                     }
                     if (store.deleteAnnotation(message.eventId)) {
                         isDirty = true;
-                        broadcastAll({
+                        broadcast({
                             type: 'ANNOTATION_DELETED',
                             eventId: message.eventId
                         });
@@ -159,11 +153,7 @@ wss.on('connection', (ws) => {
                 }
 
                 case 'REQUEST_SYNC': {
-                    ws.send(JSON.stringify({
-                        type: 'SYNC',
-                        events: store.getAll(),
-                        annotations: store.getAnnotations()
-                    }));
+                    ws.send(JSON.stringify(buildSyncMessage()));
                     break;
                 }
 
@@ -182,7 +172,7 @@ wss.on('connection', (ws) => {
 
     ws.on('close', () => {
         console.log('Client disconnected. Total clients:', wss.clients.size);
-        broadcastAll({
+        broadcast({
             type: 'USER_COUNT',
             count: wss.clients.size
         });
@@ -211,14 +201,14 @@ app.get('/api/events', (req, res) => {
 });
 
 // Load data on startup
-const loaded = loadData(DATA_FILE);
+const loaded = await loadData(DATA_FILE);
 store.load(loaded.events, loaded.annotations);
 
 // Auto-save interval
 setInterval(() => {
     if (isDirty) {
-        saveData(DATA_FILE, store.getAll(), store.getAnnotations());
         isDirty = false;
+        saveData(DATA_FILE, store.getAll(), store.getAnnotations());
     }
 }, SAVE_INTERVAL);
 
@@ -239,21 +229,16 @@ setInterval(() => {
 }, HEARTBEAT_INTERVAL);
 
 // Save on shutdown
-process.on('SIGINT', () => {
+async function shutdown() {
     console.log('\nShutting down...');
     if (isDirty) {
-        saveData(DATA_FILE, store.getAll(), store.getAnnotations());
+        await saveData(DATA_FILE, store.getAll(), store.getAnnotations());
     }
     process.exit(0);
-});
+}
 
-process.on('SIGTERM', () => {
-    console.log('\nShutting down...');
-    if (isDirty) {
-        saveData(DATA_FILE, store.getAll(), store.getAnnotations());
-    }
-    process.exit(0);
-});
+process.on('SIGINT', shutdown);
+process.on('SIGTERM', shutdown);
 
 // Start server
 server.listen(PORT, '0.0.0.0', () => {

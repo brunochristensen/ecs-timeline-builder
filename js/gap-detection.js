@@ -12,6 +12,22 @@ import { escapeHtml } from './utils.js';
 
 const coverageContent = document.getElementById('coverage-content');
 
+let eventsByIdCache = null;
+
+function getEventsById() {
+    if (eventsByIdCache) return eventsByIdCache;
+    eventsByIdCache = new Map();
+    for (const event of state.events) {
+        eventsByIdCache.set(event.id, event);
+    }
+    return eventsByIdCache;
+}
+
+function invalidateEventsCache() {
+    eventsByIdCache = null;
+    render();
+}
+
 /**
  * Builds a per-host tactic coverage map from current state.
  *
@@ -19,10 +35,9 @@ const coverageContent = document.getElementById('coverage-content');
  */
 function buildCoverage() {
     const coverage = new Map();
-    const eventsById = new Map();
+    const eventsById = getEventsById();
 
     for (const event of state.events) {
-        eventsById.set(event.id, event);
         const host = event.host && event.host.hostname;
         if (host && host !== 'Unknown' && !coverage.has(host)) {
             coverage.set(host, new Set());
@@ -90,10 +105,10 @@ function render() {
  * Initializes the gap detection module by subscribing to state events.
  */
 export function initGapDetection() {
-    state.on('events:added', render);
-    state.on('events:synced', render);
-    state.on('event:deleted', render);
-    state.on('events:cleared', render);
+    state.on('events:added', invalidateEventsCache);
+    state.on('events:synced', invalidateEventsCache);
+    state.on('event:deleted', invalidateEventsCache);
+    state.on('events:cleared', invalidateEventsCache);
     state.on('annotation:updated', render);
     state.on('annotation:deleted', render);
     render();

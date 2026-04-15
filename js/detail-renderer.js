@@ -191,6 +191,24 @@ function renderSection(title, data) {
 }
 
 /**
+ * Builds <option> HTML for a MITRE ATT&CK select, marking the selected id.
+ *
+ * @param {Array<{id: string, name: string}>|null|undefined} items - Tactic or technique list
+ * @param {string} selectedId - Currently selected ID (empty string for none)
+ * @param {string} placeholder - Placeholder label for the blank option
+ * @returns {string} Options HTML including a blank placeholder first
+ */
+export function renderMitreOptions(items, selectedId, placeholder) {
+    let html = `<option value="">${escapeHtml(placeholder)}</option>`;
+    if (!items) return html;
+    for (const item of items) {
+        const selected = item.id === selectedId ? ' selected' : '';
+        html += `<option value="${escapeHtml(item.id)}"${selected}>${escapeHtml(item.id)} - ${escapeHtml(item.name)}</option>`;
+    }
+    return html;
+}
+
+/**
  * Renders the annotation form HTML for an event.
  *
  * @param {string} eventId - The event ID
@@ -202,19 +220,9 @@ function renderAnnotationForm(eventId, annotation) {
     const selectedTactic = annotation ? annotation.mitreTactic || '' : '';
     const selectedTechnique = annotation ? annotation.mitreTechnique || '' : '';
 
-    let tacticOptions = '<option value="">-- Select Tactic --</option>';
-    for (const tactic of TACTICS) {
-        const selected = tactic.id === selectedTactic ? ' selected' : '';
-        tacticOptions += `<option value="${tactic.id}"${selected}>${escapeHtml(tactic.id)} - ${escapeHtml(tactic.name)}</option>`;
-    }
-
-    let techniqueOptions = '<option value="">-- Select Technique --</option>';
-    if (selectedTactic && TECHNIQUES[selectedTactic]) {
-        for (const tech of TECHNIQUES[selectedTactic]) {
-            const selected = tech.id === selectedTechnique ? ' selected' : '';
-            techniqueOptions += `<option value="${tech.id}"${selected}>${escapeHtml(tech.id)} - ${escapeHtml(tech.name)}</option>`;
-        }
-    }
+    const tacticOptions = renderMitreOptions(TACTICS, selectedTactic, '-- Select Tactic --');
+    const techniqueList = selectedTactic ? TECHNIQUES[selectedTactic] : null;
+    const techniqueOptions = renderMitreOptions(techniqueList, selectedTechnique, '-- Select Technique --');
 
     let html = `
         <div class="detail-section annotation-section">

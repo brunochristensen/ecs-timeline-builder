@@ -7,7 +7,7 @@ import {
     clearTimelineVisualization
 } from "./timeline.js";
 import { formatDuration } from "./utils.js";
-import { renderEventDetailPanel } from "./detail-renderer.js";
+import { renderEventDetailPanel, renderMitreOptions } from "./detail-renderer.js";
 import { initWebSocketSync, isConnected, sendEventsToServer, sendDeleteToServer, sendClearToServer, sendAnnotationToServer, sendDeleteAnnotationToServer } from "./sync.js";
 import { state } from "./state.js";
 import { TECHNIQUES } from "./mitre.js";
@@ -33,6 +33,9 @@ const zoomInBtn = document.getElementById('zoom-in');
 const zoomOutBtn = document.getElementById('zoom-out');
 const zoomResetBtn = document.getElementById('zoom-reset');
 
+// Currently displayed event in the detail panel (for annotation refresh)
+let currentDetailEvent = null;
+
 /**
  * Initializes the application on page load.
  * Sets up D3 visualization, event listeners, state subscriptions, and WebSocket sync.
@@ -53,56 +56,53 @@ function init() {
 }
 
 /**
+ * Refreshes the timeline visualization and UI controls to match current state.
+ * Renders events when present, otherwise shows the empty state.
+ */
+function refreshTimelineUi() {
+    const hasEvents = state.events.length > 0;
+    clearBtn.disabled = !hasEvents;
+    exportBtn.disabled = !hasEvents;
+
+    if (hasEvents) {
+        updateStats();
+        renderTimelineVisualization(state.events, state.hostRegistry, state.connections, state.annotations);
+    } else {
+        resetStats();
+        clearTimelineVisualization();
+    }
+}
+
+/**
+ * Re-renders the detail panel if it is open for the given event ID.
+ */
+function refreshDetailIfOpen(eventId) {
+    if (currentDetailEvent && currentDetailEvent.id === eventId) {
+        showEventDetail(currentDetailEvent);
+    }
+}
+
+/**
  * Subscribes to state change events and updates UI accordingly.
  */
 function subscribeToState() {
-    state.on('events:added', () => {
-        updateStats();
-        clearBtn.disabled = false;
-        exportBtn.disabled = false;
-        renderTimelineVisualization(state.events, state.hostRegistry, state.connections, state.annotations);
-    });
-
-    state.on('events:synced', () => {
-        if (state.events.length > 0) {
-            updateStats();
-            clearBtn.disabled = false;
-            exportBtn.disabled = false;
-            renderTimelineVisualization(state.events, state.hostRegistry, state.connections, state.annotations);
-        } else {
-            resetStats();
-            clearBtn.disabled = true;
-            exportBtn.disabled = true;
-            clearTimelineVisualization();
-        }
-    });
+    state.on('events:added', refreshTimelineUi);
+    state.on('events:synced', refreshTimelineUi);
 
     state.on('event:deleted', () => {
         eventDetail.hidden = true;
-        if (state.events.length > 0) {
-            updateStats();
-            renderTimelineVisualization(state.events, state.hostRegistry, state.connections, state.annotations);
-        } else {
-            resetStats();
-            clearBtn.disabled = true;
-            exportBtn.disabled = true;
-            clearTimelineVisualization();
-        }
+        refreshTimelineUi();
     });
 
     state.on('events:cleared', () => {
         jsonInput.value = '';
         eventDetail.hidden = true;
-        clearBtn.disabled = true;
-        exportBtn.disabled = true;
-        resetStats();
-        clearTimelineVisualization();
+        refreshTimelineUi();
     });
 
     state.on('connection:changed', (connected) => {
-        const usersEl = document.getElementById('stat-users');
         if (!connected) {
-            usersEl.textContent = 'Reconnecting...';
+            document.getElementById('stat-users').textContent = 'Reconnecting...';
         }
     });
 
@@ -110,25 +110,15 @@ function subscribeToState() {
         document.getElementById('stat-users').textContent = count;
     });
 
-    state.on('annotation:updated', (eventId) => {
-        // Refresh detail panel if showing the annotated event
-        if (currentDetailEvent && currentDetailEvent.id === eventId) {
-            showEventDetail(currentDetailEvent);
-        }
-        // Re-render timeline to update annotation markers
+    // Annotation changes refresh the detail panel (if open) and update timeline markers
+    const onAnnotationChange = (eventId) => {
+        refreshDetailIfOpen(eventId);
         if (state.events.length > 0) {
             renderTimelineVisualization(state.events, state.hostRegistry, state.connections, state.annotations);
         }
-    });
-
-    state.on('annotation:deleted', (eventId) => {
-        if (currentDetailEvent && currentDetailEvent.id === eventId) {
-            showEventDetail(currentDetailEvent);
-        }
-        if (state.events.length > 0) {
-            renderTimelineVisualization(state.events, state.hostRegistry, state.connections, state.annotations);
-        }
-    });
+    };
+    state.on('annotation:updated', onAnnotationChange);
+    state.on('annotation:deleted', onAnnotationChange);
 }
 
 /**
@@ -325,9 +315,6 @@ function setupSidebar() {
     });
 }
 
-// Track currently displayed event for annotation refresh
-let currentDetailEvent = null;
-
 /**
  * Displays the event detail panel with information about the clicked event.
  *
@@ -359,14 +346,8 @@ function showEventDetail(event) {
     const techniqueSelect = document.getElementById('annotation-technique');
     if (tacticSelect && techniqueSelect) {
         tacticSelect.addEventListener('change', () => {
-            const tacticId = tacticSelect.value;
-            let options = '<option value="">-- Select Technique --</option>';
-            if (tacticId && TECHNIQUES[tacticId]) {
-                for (const tech of TECHNIQUES[tacticId]) {
-                    options += `<option value="${tech.id}">${tech.id} - ${tech.name}</option>`;
-                }
-            }
-            techniqueSelect.innerHTML = options;
+            const techniqueList = TECHNIQUES[tacticSelect.value] || null;
+            techniqueSelect.innerHTML = renderMitreOptions(techniqueList, '', '-- Select Technique --');
         });
     }
 
