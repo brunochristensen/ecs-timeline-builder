@@ -116,6 +116,9 @@ export const TECHNIQUES = {
 
 /**
  * Look up a tactic name by ID.
+ *
+ * @param {string} tacticId - MITRE ATT&CK tactic ID (e.g., "TA0003")
+ * @returns {string} Human-readable name, or the original ID if not found
  */
 export function getTacticName(tacticId) {
     const tactic = TACTICS.find(t => t.id === tacticId);
@@ -123,7 +126,10 @@ export function getTacticName(tacticId) {
 }
 
 /**
- * Look up a technique name by ID.
+ * Look up a technique name by ID, searching across all tactic groups.
+ *
+ * @param {string} techniqueId - MITRE ATT&CK technique ID (e.g., "T1053")
+ * @returns {string} Human-readable name, or the original ID if not found
  */
 export function getTechniqueName(techniqueId) {
     for (const techniques of Object.values(TECHNIQUES)) {

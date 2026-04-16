@@ -166,6 +166,7 @@ function hasValues(obj) {
  *
  * @param {string} title - Section heading (e.g., "Network", "Process")
  * @param {Object} data - Key-value pairs to display in this section
+ * @param {number} sectionNum - 1-based section index, rendered as a zero-padded prefix (e.g., "02")
  * @returns {string} HTML string for the detail section
  */
 function renderSection(title, data, sectionNum) {

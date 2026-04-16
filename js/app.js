@@ -109,6 +109,8 @@ function refreshTimelineUi() {
 
 /**
  * Re-renders the detail panel if it is open for the given event ID.
+ *
+ * @param {string} eventId - The event ID whose detail panel should refresh
  */
 function refreshDetailIfOpen(eventId) {
     if (currentDetailEvent && currentDetailEvent.id === eventId) {

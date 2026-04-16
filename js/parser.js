@@ -8,7 +8,12 @@
  */
 
 /**
- * Safely get a nested property from an object
+ * Safely get a nested property from an object by dot-notation path.
+ *
+ * @param {Object} obj - Object to traverse
+ * @param {string} path - Dot-notation key path (e.g., "host.os.name")
+ * @param {*} [defaultValue=null] - Value returned when any segment is missing
+ * @returns {*} The resolved value, or defaultValue if any segment is null/undefined
  */
 export function getNestedValue(obj, path, defaultValue = null) {
     if (!obj || !path) return defaultValue;
@@ -23,7 +28,10 @@ export function getNestedValue(obj, path, defaultValue = null) {
 
 /**
  * Normalize a value that might be an array. Returns the first element if
- * value is an array, otherwise the value itself
+ * value is an array, otherwise the value itself.
+ *
+ * @param {*} value - Value to normalize (Elasticsearch frequently wraps scalars in arrays)
+ * @returns {*} First element if array, null if empty array, otherwise the value unchanged
  */
 function normalizeValue(value) {
     if (Array.isArray(value)) {
@@ -33,7 +41,12 @@ function normalizeValue(value) {
 }
 
 /**
- * Get nested value and normalize it (handles Elasticsearch array fields)
+ * Get nested value and normalize it (handles Elasticsearch array fields).
+ *
+ * @param {Object} obj - Object to traverse
+ * @param {string} path - Dot-notation key path
+ * @param {*} [defaultValue=null] - Value returned when path is missing
+ * @returns {*} The resolved value, normalized to first element if it's an array
  */
 function getNestedString(obj, path, defaultValue = null) {
     const value = getNestedValue(obj, path, defaultValue);
@@ -41,7 +54,12 @@ function getNestedString(obj, path, defaultValue = null) {
 }
 
 /**
- * Try multiple paths and return the first non-null value
+ * Try multiple paths and return the first non-null value.
+ *
+ * @param {Object} obj - Object to traverse
+ * @param {string[]} paths - Ordered list of dot-notation paths to try
+ * @param {*} [defaultValue=null] - Value returned when no path resolves
+ * @returns {*} The first non-null/undefined/empty-string value found, or defaultValue
  */
 function getFirstValue(obj, paths, defaultValue = null) {
     for (const path of paths) {
@@ -54,8 +72,12 @@ function getFirstValue(obj, paths, defaultValue = null) {
 }
 
 /**
- * Try multiple paths and return the first non-null value, normalized to string
- * Handles Elasticsearch array fields by returning first element
+ * Try multiple paths and return the first non-null value, normalized from array to scalar.
+ *
+ * @param {Object} obj - Object to traverse
+ * @param {string[]} paths - Ordered list of dot-notation paths to try
+ * @param {*} [defaultValue=null] - Value returned when no path resolves
+ * @returns {*} First matched value with array-unwrapping applied
  */
 function getFirstString(obj, paths, defaultValue = null) {
     const value = getFirstValue(obj, paths, defaultValue);
@@ -63,9 +85,11 @@ function getFirstString(obj, paths, defaultValue = null) {
 }
 
 /**
- * Parse timestamp from ECS timestamp fields
- * ECS standard: @timestamp is the primary field
- * Fallbacks use other ECS date fields
+ * Parse timestamp from ECS timestamp fields.
+ * Tries @timestamp first, then event.created/ingested/start/end as fallbacks.
+ *
+ * @param {Object} event - Raw ECS event object
+ * @returns {Date|null} Parsed Date, or null if no valid timestamp found
  */
 function parseTimestamp(event) {
     // ECS standard timestamp fields (in priority order)
@@ -83,8 +107,12 @@ function parseTimestamp(event) {
 }
 
 /**
- * Determine the host identifier for swim lane assignment
- * Uses only ECS standard fields from host.*, agent.*, and observer.* field sets
+ * Determine the host identifier for swim lane assignment.
+ * Uses only ECS standard fields from host.*, agent.*, and observer.* field sets.
+ * Falls back to source/destination IP for network-only events with no host metadata.
+ *
+ * @param {Object} event - Raw ECS event object
+ * @returns {{ hostname: string, ip: string|null, displayName: string }} Host identity
  */
 function extractHostIdentifier(event) {
     // ECS host identification (priority order per ECS spec)
@@ -164,7 +192,12 @@ export const CATEGORY_MAP = {
 };
 
 /**
- * Extract event category for filtering and styling
+ * Extract event category for filtering and styling.
+ * Reads ECS `event.category` (falls back to `event.type`) and maps it to one of the
+ * swim-lane categories used by the visualization.
+ *
+ * @param {Object} event - Raw ECS event object
+ * @returns {string} One of: 'network', 'file', 'process', 'authentication', 'registry', 'other'
  */
 function extractCategory(event) {
     const category = getFirstString(event, ['event.category', 'event.type']);
@@ -174,6 +207,9 @@ function extractCategory(event) {
 /**
  * Check if an event has a valid cross-host network connection.
  * Returns true if source and destination IPs exist and are not localhost/same-host.
+ *
+ * @param {Object} event - Raw ECS event object
+ * @returns {boolean} True if the event represents a distinct cross-host flow
  */
 function hasConnection(event) {
     const sourceIp = getNestedString(event, 'source.ip');
@@ -189,8 +225,12 @@ function hasConnection(event) {
 }
 
 /**
- * Extract a human-readable summary of the event
- * Uses only ECS standard fields
+ * Extract a human-readable summary of the event.
+ * Composes event.action with process, file, destination, DNS, URL, and user context.
+ * Uses only ECS standard fields.
+ *
+ * @param {Object} event - Raw ECS event object
+ * @returns {string} Short single-line summary suitable for tooltips and the detail panel
  */
 function extractSummary(event) {
     // ECS event.action is the primary descriptor; event.type is the array fallback
@@ -244,8 +284,14 @@ function extractSummary(event) {
 
 /**
  * Generate a deterministic ID for an event based on its content.
- * Uses timestamp + host + action + category so the same event always
- * produces the same ID regardless of parse order.
+ * Prefers ECS `event.id` when present; otherwise falls back to a stable composite
+ * of timestamp + host + action + category so the same event always produces the
+ * same ID regardless of parse order. Stable IDs are a hard requirement because
+ * annotations reference events by ID.
+ *
+ * @param {Object} event - Raw ECS event object
+ * @param {Date|null} timestamp - Parsed event timestamp (used in the composite fallback)
+ * @returns {string} Stable event identifier
  */
 function generateEventId(event, timestamp) {
     // Try to use ECS event.id if available
@@ -261,8 +307,14 @@ function generateEventId(event, timestamp) {
 }
 
 /**
- * Parse a single event
- * Accepts both raw ECS events and Elasticsearch export format (with _source wrapper)
+ * Parse a single raw event into a normalized internal representation.
+ * Accepts both raw ECS events and Elasticsearch export format (with `_source` wrapper),
+ * preserving the ES `_id` for deduplication when available.
+ *
+ * @param {Object} rawEvent - Raw event, optionally wrapped in Elasticsearch `_source`
+ * @param {number} index - Position in the source stream (used for warning messages)
+ * @returns {{id: string, timestamp: Date, host: Object, category: string, summary: string, raw: Object}|null}
+ *   Parsed event, or null if the event has no valid timestamp
  */
 function parseEvent(rawEvent, index) {
     // Handle Elasticsearch export format (unwrap _source if present)

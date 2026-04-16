@@ -14,6 +14,12 @@ const coverageContent = document.getElementById('coverage-content');
 
 let eventsByIdCache = null;
 
+/**
+ * Lazily build and memoize a `Map<eventId, event>` for annotation lookups.
+ * Invalidated whenever the event list changes.
+ *
+ * @returns {Map<string, Object>} Map keyed by stable event ID
+ */
 function getEventsById() {
     if (eventsByIdCache) return eventsByIdCache;
     eventsByIdCache = new Map();
@@ -23,6 +29,10 @@ function getEventsById() {
     return eventsByIdCache;
 }
 
+/**
+ * Drop the memoized events-by-id map and re-render the coverage panel.
+ * Called when state events mutate the event list.
+ */
 function invalidateEventsCache() {
     eventsByIdCache = null;
     render();

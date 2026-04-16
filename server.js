@@ -30,7 +30,11 @@ const store = new EventStore();
 let isDirty = false;
 
 /**
- * Broadcast a message to connected clients, optionally excluding one (the sender).
+ * Broadcast a message to all connected clients, optionally excluding one (the sender).
+ * Serializes the payload once and sends the string to each client.
+ *
+ * @param {Object} message - Message object to serialize and broadcast
+ * @param {WebSocket|null} [excludeWs=null] - Client to skip (typically the sender)
  */
 function broadcast(message, excludeWs = null) {
     const msgString = JSON.stringify(message);
@@ -43,6 +47,8 @@ function broadcast(message, excludeWs = null) {
 
 /**
  * Builds a full-state SYNC message payload from the store.
+ *
+ * @returns {{ type: string, events: Array, annotations: Object }} SYNC message
  */
 function buildSyncMessage() {
     return {
