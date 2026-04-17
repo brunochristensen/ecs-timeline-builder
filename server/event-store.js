@@ -4,7 +4,7 @@
  * No knowledge of WebSocket, HTTP, or file I/O.
  */
 
-import { deduplicateEvents, getId } from '../js/dedup.js';
+import { deduplicateEvents, getId } from '../shared/dedup.js';
 
 export class EventStore {
     #events = [];

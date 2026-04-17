@@ -1,6 +1,6 @@
 import { EventEmitter } from './event-emitter.js';
 import { parseEvents, buildHostRegistry, identifyConnections } from './parser.js';
-import { deduplicateEvents } from './dedup.js';
+import { deduplicateEvents } from '../shared/dedup.js';
 
 /**
  * Centralized timeline state store. Single source of truth for events, annotations,

@@ -11,6 +11,7 @@ RUN npm install --production
 # Copy application files
 COPY server.js ./
 COPY server/ ./server/
+COPY shared/ ./shared/
 COPY index.html ./
 COPY css/ ./css/
 COPY js/ ./js/

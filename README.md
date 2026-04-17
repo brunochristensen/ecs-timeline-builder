@@ -13,13 +13,9 @@ Browser-based timeline visualization for Elastic Common Schema (ECS) events. Sup
 
 ## Quick Start
 
-### Collaborative Use
+- Requires Node.js 18+
 
-#### Prerequisites
-
-- Node.js 18+ or Docker
-
-#### Option A: Node.js
+#### In a console:
 
 ```bash
 npm install
@@ -32,16 +28,9 @@ To manually specify a port:
 PORT=<port> npm start #Linux
 $env:PORT=<port>; npm start #Or for PowerShell
 ```
-
-#### Option B: Docker
-
-```bash
-docker-compose up -d
-```
-
 Access at `http://<host-ip>:12345`
 
-## Deployment on Closed Network
+## Deployment
 
 ### Preparation (on internet-connected machine)
 
@@ -54,7 +43,7 @@ docker save ecs-timeline-builder -o ecs-timeline-builder.tar
 
 Transfer `ecs-timeline-builder.tar` to the closed network.
 
-### Deployment (on closed network)
+### Deployment
 
 ```bash
 docker load -i ecs-timeline-builder.tar

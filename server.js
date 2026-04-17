@@ -194,10 +194,17 @@ app.use(express.static(path.join(__dirname)));
 
 // Health check endpoint
 app.get('/health', (req, res) => {
+    const mem = process.memoryUsage();
     res.json({
         status: 'ok',
+        uptime: Math.floor(process.uptime()),
         clients: wss.clients.size,
-        events: store.length
+        events: store.length,
+        annotations: Object.keys(store.getAnnotations()).length,
+        memory: {
+            heapUsedMB: Math.round(mem.heapUsed / 1024 / 1024),
+            heapTotalMB: Math.round(mem.heapTotal / 1024 / 1024)
+        }
     });
 });
 
