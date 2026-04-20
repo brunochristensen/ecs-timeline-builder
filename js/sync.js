@@ -5,10 +5,11 @@
 
 import { state } from './state.js';
 
+const MAX_RECONNECT_ATTEMPTS = 10;
+const BASE_RECONNECT_DELAY_MS = 1000;
+
 let ws = null;
 let reconnectAttempts = 0;
-let maxReconnectAttempts = 10;
-let reconnectDelay = 1000;
 let connectionActive = false;
 
 /**
@@ -61,18 +62,18 @@ function connect() {
 
 /**
  * Attempts to reconnect after connection loss using exponential backoff.
- * Doubles delay after each attempt up to maxReconnectAttempts.
+ * Doubles delay after each attempt up to MAX_RECONNECT_ATTEMPTS.
  */
 function attemptReconnect() {
-    if (reconnectAttempts >= maxReconnectAttempts) {
+    if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
         console.error('Max reconnection attempts reached');
         return;
     }
 
     reconnectAttempts++;
-    const delay = reconnectDelay * Math.pow(2, reconnectAttempts - 1);
+    const delay = BASE_RECONNECT_DELAY_MS * Math.pow(2, reconnectAttempts - 1);
 
-    console.log(`Reconnecting in ${delay}ms (attempt ${reconnectAttempts}/${maxReconnectAttempts})`);
+    console.log(`Reconnecting in ${delay}ms (attempt ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})`);
 
     setTimeout(() => {
         if (!connectionActive) {
@@ -90,7 +91,7 @@ function handleMessage(message) {
     switch (message.type) {
         case 'SYNC':
             console.log(`Received sync: ${message.events.length} events`);
-            state.setEvents(message.events);
+            state.setEvents(message.events, message.annotations || {});
             break;
 
         case 'EVENTS_ADDED':
@@ -116,9 +117,35 @@ function handleMessage(message) {
             state.setUserCount(message.count);
             break;
 
+        case 'ANNOTATION_UPDATED':
+            state.setAnnotation(message.eventId, message.annotation);
+            break;
+
+        case 'ANNOTATION_DELETED':
+            state.deleteAnnotation(message.eventId);
+            break;
+
+        case 'PING':
+            send({ type: 'PONG' });
+            break;
+
         default:
             console.warn('Unknown message type:', message.type);
     }
+}
+
+/**
+ * Sends a message to the server if the connection is open.
+ *
+ * @param {Object} message - Message object to serialize and send
+ * @returns {boolean} True if the message was sent, false if not connected
+ */
+function send(message) {
+    if (!connectionActive || !ws || ws.readyState !== WebSocket.OPEN) {
+        return false;
+    }
+    ws.send(JSON.stringify(message));
+    return true;
 }
 
 /**
@@ -128,17 +155,7 @@ function handleMessage(message) {
  * @returns {boolean} True if message was sent, false if not connected
  */
 export function sendEventsToServer(rawEvents) {
-    if (!connectionActive || !ws) {
-        console.error('Not connected to server');
-        return false;
-    }
-
-    ws.send(JSON.stringify({
-        type: 'ADD_EVENTS',
-        events: rawEvents
-    }));
-
-    return true;
+    return send({ type: 'ADD_EVENTS', events: rawEvents });
 }
 
 /**
@@ -148,17 +165,7 @@ export function sendEventsToServer(rawEvents) {
  * @returns {boolean} True if message was sent, false if not connected
  */
 export function sendDeleteToServer(eventId) {
-    if (!connectionActive || !ws) {
-        console.error('Not connected to server');
-        return false;
-    }
-
-    ws.send(JSON.stringify({
-        type: 'DELETE_EVENT',
-        eventId: eventId
-    }));
-
-    return true;
+    return send({ type: 'DELETE_EVENT', eventId });
 }
 
 /**
@@ -167,16 +174,34 @@ export function sendDeleteToServer(eventId) {
  * @returns {boolean} True if message was sent, false if not connected
  */
 export function sendClearToServer() {
-    if (!connectionActive || !ws) {
-        console.error('Not connected to server');
-        return false;
-    }
+    return send({ type: 'CLEAR' });
+}
 
-    ws.send(JSON.stringify({
-        type: 'CLEAR'
-    }));
+/**
+ * Sends an annotation to the server for broadcast to other clients.
+ *
+ * @param {string} eventId - The event ID to annotate
+ * @param {Object} annotation - { comment, mitreTactic, mitreTechnique }
+ * @returns {boolean} True if message was sent
+ */
+export function sendAnnotationToServer(eventId, annotation) {
+    return send({
+        type: 'ANNOTATE_EVENT',
+        eventId,
+        comment: annotation.comment || '',
+        mitreTactic: annotation.mitreTactic || '',
+        mitreTechnique: annotation.mitreTechnique || ''
+    });
+}
 
-    return true;
+/**
+ * Requests the server to delete an annotation.
+ *
+ * @param {string} eventId - The event ID whose annotation to delete
+ * @returns {boolean} True if message was sent
+ */
+export function sendDeleteAnnotationToServer(eventId) {
+    return send({ type: 'DELETE_ANNOTATION', eventId });
 }
 
 /**

@@ -1,78 +1,80 @@
 # ECS Timeline Builder
+Collaborative incident timeline visualization for DFIR teams. Import ECS events from Kibana, build a shared swim-lane timeline across hosts, annotate events with MITRE ATT&CK tactics/techniques, and track per-host tactic coverage to surface investigation gaps.
 
-Browser-based timeline visualization for Elastic Common Schema (ECS) events. Supports collaborative editing for team use on closed networks.
+Designed for simple deployment via Docker with minimal configuration and dependencies.
+
+![ECS Timeline Builder](docs/images/application.png)
 
 ## Features
 
-- Drag-and-drop or paste ECS JSON/NDJSON events right from Kibana
-- Swim lane visualization grouped by host for maximum clarity
-- Cross-host connection lines for network events to track adversary movement
-- Event filtering by event category
-- Real-time collaborative editing with multiple users
-- Export timeline as JSON for sharing and preservation
+- **Drag-and-drop or paste** ECS JSON/NDJSON events directly from Kibana exports
+- **Swim-lane timeline** grouped by host with zoom, pan, and sub-second to a multi-day scale
+- **Cross-host connection arcs** link lateral movement and network flows across hosts
+- **MITRE ATT&CK annotations** to tag events with tactics and techniques and add analyst comments
+- **Real-time collaboration**: 2–5 analysts working simultaneously via WebSocket sync
+- **Event detail panel** with organized ECS field display, raw JSON view, and inline annotation editing
+- **Export** timeline with annotations as JSON for reporting and archival
+- **Air-gapped deployment**: Docker image with all assets (D3.js, fonts, no CDN calls)
 
 ## Quick Start
 
-### Collaborative Use
-
-#### Prerequisites
-
-- Node.js 18+ or Docker
-
-#### Option A: Node.js
+Requires Node.js 18+
 
 ```bash
 npm install
 npm start
 ```
-Access at `http://<host-ip>:12345`
 
-To manually specify a port:
-```bash
-PORT=<port> npm start #Linux
-$env:PORT=<port>; npm start #Or for PowerShell
-```
-
-#### Option B: Docker
+Open `http://localhost:12345` in a browser. To use a custom port:
 
 ```bash
-docker-compose up -d
+PORT=8080 npm start            # Linux / macOS / Git Bash
+$env:PORT=8080; npm start      # PowerShell
 ```
 
-Access at `http://<host-ip>:12345`
+## Docker Deployment
 
-## Deployment on Closed Network
-
-### Preparation (on internet-connected machine)
-
-Build and export the Docker image:
+### Build (on internet-connected machine)
 
 ```bash
 docker build -t ecs-timeline-builder .
 docker save ecs-timeline-builder -o ecs-timeline-builder.tar
 ```
 
-Transfer `ecs-timeline-builder.tar` to the closed network.
+Transfer `ecs-timeline-builder.tar` to the target network.
 
-### Deployment (on closed network)
+### Deploy
 
 ```bash
 docker load -i ecs-timeline-builder.tar
-docker run -d -p <host-port>:12345 -v timeline-data:/app/data --name ecs-timeline ecs-timeline-builder
+docker run -d -p 12345:12345 -v timeline-data:/app/data --name ecs-timeline ecs-timeline-builder
 ```
 
-Team members access via `http://<host-ip>:<host-port>`
+Or with docker-compose:
+
+```bash
+docker-compose up -d
+```
+
+Team members access via `http://<host-ip>:12345`
 
 ### Data Persistence
 
-Timeline data auto-saves to `/app/data/timeline.json` inside the container. The Docker volume `timeline-data` preserves data across container restarts.
+Timeline data (events and annotations) auto-saves to `/app/data/timeline.json` inside the container. The Docker volume `timeline-data` preserves data across container restarts.
 
-To backup:
 ```bash
+# Backup
 docker cp ecs-timeline:/app/data/timeline.json ./backup.json
-```
 
-To restore:
-```bash
+# Restore
 docker cp ./backup.json ecs-timeline:/app/data/timeline.json
 ```
+
+## Usage
+
+1. **Import events** — Drag a `.json` or `.ndjson` file onto the drop zone, or paste JSON into the text area. Supports single objects, arrays, NDJSON, and Elasticsearch `_source` wrapper format.
+2. **Explore the timeline** — Scroll to zoom, drag to pan. Events are color-coded by category (network, process, file, authentication, registry).
+3. **Inspect events** — Click any event dot to open the detail panel with organized ECS fields and raw JSON.
+4. **Annotate** — Add free-text comments and MITRE ATT&CK tactic/technique tags to events. Annotations sync to all connected analysts in real time.
+5. **Track coverage** — The sidebar MITRE coverage panel shows which tactics have been tagged per host, highlighting investigation gaps.
+6. **Export** — Download the full timeline (events and annotations) as JSON.

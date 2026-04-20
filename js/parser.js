@@ -8,7 +8,12 @@
  */
 
 /**
- * Safely get a nested property from an object
+ * Safely get a nested property from an object by dot-notation path.
+ *
+ * @param {Object} obj - Object to traverse
+ * @param {string} path - Dot-notation key path (e.g., "host.os.name")
+ * @param {*} [defaultValue=null] - Value returned when any segment is missing
+ * @returns {*} The resolved value, or defaultValue if any segment is null/undefined
  */
 export function getNestedValue(obj, path, defaultValue = null) {
     if (!obj || !path) return defaultValue;
@@ -23,7 +28,10 @@ export function getNestedValue(obj, path, defaultValue = null) {
 
 /**
  * Normalize a value that might be an array. Returns the first element if
- * value is an array, otherwise the value itself
+ * value is an array, otherwise the value itself.
+ *
+ * @param {*} value - Value to normalize (Elasticsearch frequently wraps scalars in arrays)
+ * @returns {*} First element if array, null if empty array, otherwise the value unchanged
  */
 function normalizeValue(value) {
     if (Array.isArray(value)) {
@@ -33,7 +41,12 @@ function normalizeValue(value) {
 }
 
 /**
- * Get nested value and normalize it (handles Elasticsearch array fields)
+ * Get nested value and normalize it (handles Elasticsearch array fields).
+ *
+ * @param {Object} obj - Object to traverse
+ * @param {string} path - Dot-notation key path
+ * @param {*} [defaultValue=null] - Value returned when path is missing
+ * @returns {*} The resolved value, normalized to first element if it's an array
  */
 function getNestedString(obj, path, defaultValue = null) {
     const value = getNestedValue(obj, path, defaultValue);
@@ -41,7 +54,12 @@ function getNestedString(obj, path, defaultValue = null) {
 }
 
 /**
- * Try multiple paths and return the first non-null value
+ * Try multiple paths and return the first non-null value.
+ *
+ * @param {Object} obj - Object to traverse
+ * @param {string[]} paths - Ordered list of dot-notation paths to try
+ * @param {*} [defaultValue=null] - Value returned when no path resolves
+ * @returns {*} The first non-null/undefined/empty-string value found, or defaultValue
  */
 function getFirstValue(obj, paths, defaultValue = null) {
     for (const path of paths) {
@@ -54,8 +72,12 @@ function getFirstValue(obj, paths, defaultValue = null) {
 }
 
 /**
- * Try multiple paths and return the first non-null value, normalized to string
- * Handles Elasticsearch array fields by returning first element
+ * Try multiple paths and return the first non-null value, normalized from array to scalar.
+ *
+ * @param {Object} obj - Object to traverse
+ * @param {string[]} paths - Ordered list of dot-notation paths to try
+ * @param {*} [defaultValue=null] - Value returned when no path resolves
+ * @returns {*} First matched value with array-unwrapping applied
  */
 function getFirstString(obj, paths, defaultValue = null) {
     const value = getFirstValue(obj, paths, defaultValue);
@@ -63,9 +85,11 @@ function getFirstString(obj, paths, defaultValue = null) {
 }
 
 /**
- * Parse timestamp from ECS timestamp fields
- * ECS standard: @timestamp is the primary field
- * Fallbacks use other ECS date fields
+ * Parse timestamp from ECS timestamp fields.
+ * Tries @timestamp first, then event.created/ingested/start/end as fallbacks.
+ *
+ * @param {Object} event - Raw ECS event object
+ * @returns {Date|null} Parsed Date, or null if no valid timestamp found
  */
 function parseTimestamp(event) {
     // ECS standard timestamp fields (in priority order)
@@ -77,17 +101,18 @@ function parseTimestamp(event) {
         'event.end'             // When event ended (fallback)
     ]);
 
-    if (tsValue) {
-        const date = new Date(tsValue);
-        return isNaN(date.getTime()) ? null : date;
-    } else {
-        return null;
-    }
+    if (!tsValue) return null;
+    const date = new Date(tsValue);
+    return isNaN(date.getTime()) ? null : date;
 }
 
 /**
- * Determine the host identifier for swim lane assignment
- * Uses only ECS standard fields from host.*, agent.*, and observer.* field sets
+ * Determine the host identifier for swim lane assignment.
+ * Uses only ECS standard fields from host.*, agent.*, and observer.* field sets.
+ * Falls back to source/destination IP for network-only events with no host metadata.
+ *
+ * @param {Object} event - Raw ECS event object
+ * @returns {{ hostname: string, ip: string|null, displayName: string }} Host identity
  */
 function extractHostIdentifier(event) {
     // ECS host identification (priority order per ECS spec)
@@ -167,73 +192,49 @@ export const CATEGORY_MAP = {
 };
 
 /**
- * Extract event category for filtering and styling
+ * Extract event category for filtering and styling.
+ * Reads ECS `event.category` (falls back to `event.type`) and maps it to one of the
+ * swim-lane categories used by the visualization.
+ *
+ * @param {Object} event - Raw ECS event object
+ * @returns {string} One of: 'network', 'file', 'process', 'authentication', 'registry', 'other'
  */
 function extractCategory(event) {
-    const category = getFirstValue(event, [
-        'event.category',
-        'event.type'
-    ]);
-
-    const categoryValue = Array.isArray(category) ? category[0] : category;
-    return CATEGORY_MAP[categoryValue] || 'other';
+    const category = getFirstString(event, ['event.category', 'event.type']);
+    return CATEGORY_MAP[category] || 'other';
 }
 
 /**
- * Extract network connection info for cross-host lines
- * Uses ECS source.*, destination.*, and network.* field sets
+ * Check if an event has a valid cross-host network connection.
+ * Returns true if source and destination IPs exist and are not localhost/same-host.
+ *
+ * @param {Object} event - Raw ECS event object
+ * @returns {boolean} True if the event represents a distinct cross-host flow
  */
-function extractConnectionInfo(event) {
-    // Use getNestedString to handle ES array values
+function hasConnection(event) {
     const sourceIp = getNestedString(event, 'source.ip');
     const destIp = getNestedString(event, 'destination.ip');
 
-    if (!sourceIp || !destIp) return null;
+    if (!sourceIp || !destIp) return false;
 
-    // Skip localhost connections
-    if (sourceIp === destIp ||
+    return !(sourceIp === destIp ||
         sourceIp === '127.0.0.1' ||
         destIp === '127.0.0.1' ||
         sourceIp.startsWith('::1') ||
-        destIp.startsWith('::1')) {
-        return null;
-    }
-
-    return {
-        // ECS source.* fields
-        sourceIp: sourceIp,
-        sourcePort: getNestedString(event, 'source.port'),
-        sourceHostname: getNestedString(event, 'source.domain'),
-        sourceBytes: getNestedValue(event, 'source.bytes'),
-        sourcePackets: getNestedValue(event, 'source.packets'),
-        // ECS destination.* fields
-        destIp: destIp,
-        destPort: getNestedString(event, 'destination.port'),
-        destHostname: getNestedString(event, 'destination.domain'),
-        destBytes: getNestedValue(event, 'destination.bytes'),
-        destPackets: getNestedValue(event, 'destination.packets'),
-        // ECS network.* fields
-        protocol: getFirstValue(event, ['network.transport', 'network.protocol']),
-        direction: getNestedValue(event, 'network.direction'),
-        communityId: getNestedValue(event, 'network.community_id'),
-        networkType: getNestedValue(event, 'network.type'),
-        networkBytes: getNestedValue(event, 'network.bytes')
-    };
+        destIp.startsWith('::1'));
 }
 
 /**
- * Extract a human-readable summary of the event
- * Uses only ECS standard fields
+ * Extract a human-readable summary of the event.
+ * Composes event.action with process, file, destination, DNS, URL, and user context.
+ * Uses only ECS standard fields.
+ *
+ * @param {Object} event - Raw ECS event object
+ * @returns {string} Short single-line summary suitable for tooltips and the detail panel
  */
 function extractSummary(event) {
-    // ECS event.action is the primary descriptor
-    const action = getFirstValue(event, [
-        'event.action',         // ECS: Action captured by the event
-        'event.type'            // ECS: Event type (array)
-    ]);
-
-    // Get action as string
-    const actionStr = Array.isArray(action) ? action[0] : action;
+    // ECS event.action is the primary descriptor; event.type is the array fallback
+    const actionStr = getFirstString(event, ['event.action', 'event.type']);
 
     // ECS process.* fields (use getNestedString to handle ES array values)
     const processName = getNestedString(event, 'process.name');
@@ -280,189 +281,40 @@ function extractSummary(event) {
     return summary;
 }
 
-/**
- * ECS field map for the detail panel.
- * Each section has a key, optional trigger paths (section is skipped if none match),
- * and a fields object mapping display keys to ECS dot-notation paths.
- */
-const ECS_DETAIL_SECTIONS = [
-    {
-        key: 'event',
-        fields: {
-            action: 'event.action', category: 'event.category', type: 'event.type',
-            outcome: 'event.outcome', reason: 'event.reason', code: 'event.code',
-            provider: 'event.provider', dataset: 'event.dataset', module: 'event.module',
-            kind: 'event.kind', severity: 'event.severity', riskScore: 'event.risk_score'
-        }
-    },
-    {
-        key: 'host',
-        fields: {
-            hostname: 'host.hostname', name: 'host.name', id: 'host.id',
-            ip: 'host.ip', mac: 'host.mac', os: 'host.os.name',
-            osVersion: 'host.os.version', osFamily: 'host.os.family',
-            osPlatform: 'host.os.platform', architecture: 'host.architecture'
-        }
-    },
-    {
-        key: 'network',
-        trigger: ['source.ip', 'destination.ip'],
-        fields: {
-            sourceIp: 'source.ip', sourcePort: 'source.port',
-            sourceDomain: 'source.domain', sourceBytes: 'source.bytes',
-            sourcePackets: 'source.packets', sourceGeoCountry: 'source.geo.country_name',
-            sourceGeoCity: 'source.geo.city_name',
-            destIp: 'destination.ip', destPort: 'destination.port',
-            destDomain: 'destination.domain', destBytes: 'destination.bytes',
-            destPackets: 'destination.packets', destGeoCountry: 'destination.geo.country_name',
-            destGeoCity: 'destination.geo.city_name',
-            protocol: 'network.protocol', transport: 'network.transport',
-            type: 'network.type', direction: 'network.direction',
-            communityId: 'network.community_id', bytes: 'network.bytes',
-            packets: 'network.packets', application: 'network.application'
-        }
-    },
-    {
-        key: 'process',
-        trigger: ['process.name', 'process.pid'],
-        fields: {
-            name: 'process.name', pid: 'process.pid', executable: 'process.executable',
-            commandLine: 'process.command_line', args: 'process.args',
-            workingDirectory: 'process.working_directory', entityId: 'process.entity_id',
-            exitCode: 'process.exit_code',
-            parentName: 'process.parent.name', parentPid: 'process.parent.pid',
-            parentExecutable: 'process.parent.executable',
-            parentCommandLine: 'process.parent.command_line',
-            hashMd5: 'process.hash.md5', hashSha1: 'process.hash.sha1',
-            hashSha256: 'process.hash.sha256'
-        }
-    },
-    {
-        key: 'file',
-        trigger: ['file.path', 'file.name'],
-        fields: {
-            path: 'file.path', name: 'file.name', directory: 'file.directory',
-            extension: 'file.extension', mimeType: 'file.mime_type', size: 'file.size',
-            targetPath: 'file.target_path', type: 'file.type',
-            hashMd5: 'file.hash.md5', hashSha1: 'file.hash.sha1',
-            hashSha256: 'file.hash.sha256'
-        }
-    },
-    {
-        key: 'user',
-        trigger: ['user.name', 'user.id'],
-        fields: {
-            name: 'user.name', fullName: 'user.full_name', domain: 'user.domain',
-            id: 'user.id', email: 'user.email', roles: 'user.roles',
-            targetName: 'user.target.name', targetDomain: 'user.target.domain',
-            effectiveName: 'user.effective.name'
-        }
-    },
-    {
-        key: 'dns',
-        trigger: ['dns.question.name'],
-        fields: {
-            questionName: 'dns.question.name', questionType: 'dns.question.type',
-            questionClass: 'dns.question.class', responseCode: 'dns.response_code',
-            resolvedIp: 'dns.resolved_ip', answers: 'dns.answers'
-        }
-    },
-    {
-        key: 'url',
-        trigger: ['url.full', 'url.domain'],
-        fields: {
-            full: 'url.full', domain: 'url.domain', path: 'url.path',
-            query: 'url.query', scheme: 'url.scheme', port: 'url.port'
-        }
-    },
-    {
-        key: 'http',
-        trigger: ['http.request.method', 'http.response.status_code'],
-        fields: {
-            method: 'http.request.method', statusCode: 'http.response.status_code',
-            requestBodyContent: 'http.request.body.content',
-            responseBodyContent: 'http.response.body.content',
-            userAgent: 'user_agent.original'
-        }
-    },
-    {
-        key: 'registry',
-        trigger: ['registry.path', 'registry.key'],
-        fields: {
-            path: 'registry.path', key: 'registry.key', value: 'registry.value',
-            dataStrings: 'registry.data.strings', dataType: 'registry.data.type',
-            hive: 'registry.hive'
-        }
-    },
-    {
-        key: 'threat',
-        trigger: ['threat.indicator', 'threat.technique.name'],
-        fields: {
-            framework: 'threat.framework', tacticName: 'threat.tactic.name',
-            tacticId: 'threat.tactic.id', techniqueName: 'threat.technique.name',
-            techniqueId: 'threat.technique.id', indicator: 'threat.indicator'
-        }
-    },
-    {
-        key: 'observer',
-        trigger: ['observer.name', 'observer.type'],
-        fields: {
-            name: 'observer.name', hostname: 'observer.hostname', ip: 'observer.ip',
-            type: 'observer.type', vendor: 'observer.vendor',
-            product: 'observer.product', version: 'observer.version'
-        }
-    },
-    {
-        key: 'rule',
-        trigger: ['rule.name', 'rule.id'],
-        fields: {
-            name: 'rule.name', id: 'rule.id', category: 'rule.category',
-            description: 'rule.description', ruleset: 'rule.ruleset',
-            reference: 'rule.reference'
-        }
-    }
-];
 
 /**
- * Extract key fields for the detail panel.
- * Driven by ECS_DETAIL_SECTIONS config — each section is included only if
- * its trigger fields exist (or unconditionally if no trigger is defined).
+ * Generate a deterministic ID for an event based on its content.
+ * Prefers ECS `event.id` when present; otherwise falls back to a stable composite
+ * of timestamp + host + action + category so the same event always produces the
+ * same ID regardless of parse order. Stable IDs are a hard requirement because
+ * annotations reference events by ID.
+ *
+ * @param {Object} event - Raw ECS event object
+ * @param {Date|null} timestamp - Parsed event timestamp (used in the composite fallback)
+ * @returns {string} Stable event identifier
  */
-function extractDetails(event) {
-    const details = {};
-
-    for (const section of ECS_DETAIL_SECTIONS) {
-        if (section.trigger && !section.trigger.some(p => getNestedValue(event, p))) {
-            continue;
-        }
-        const data = {};
-        for (const [key, path] of Object.entries(section.fields)) {
-            data[key] = getNestedValue(event, path);
-        }
-        details[section.key] = data;
-    }
-
-    return details;
-}
-
-/**
- * Generate a unique ID for an event based on its content
- * Uses timestamp + host + category for uniqueness
- */
-function generateEventId(event, timestamp, index) {
+function generateEventId(event, timestamp) {
     // Try to use ECS event.id if available
     const eventId = getNestedValue(event, 'event.id');
     if (eventId) return eventId;
 
-    // Generate from content
+    // Generate deterministic ID from content fields
     const host = getFirstString(event, ['host.hostname', 'host.name', 'host.ip']) || 'unknown';
     const ts = timestamp ? timestamp.getTime() : Date.now();
-    return `${ts}-${host}-${index}`;
+    const action = getFirstString(event, ['event.action', 'event.type']) || '';
+    const category = getFirstString(event, ['event.category']) || '';
+    return `${ts}-${host}-${action}-${category}`;
 }
 
 /**
- * Parse a single event
- * Accepts both raw ECS events and Elasticsearch export format (with _source wrapper)
+ * Parse a single raw event into a normalized internal representation.
+ * Accepts both raw ECS events and Elasticsearch export format (with `_source` wrapper),
+ * preserving the ES `_id` for deduplication when available.
+ *
+ * @param {Object} rawEvent - Raw event, optionally wrapped in Elasticsearch `_source`
+ * @param {number} index - Position in the source stream (used for warning messages)
+ * @returns {{id: string, timestamp: Date, host: Object, category: string, summary: string, raw: Object}|null}
+ *   Parsed event, or null if the event has no valid timestamp
  */
 function parseEvent(rawEvent, index) {
     // Handle Elasticsearch export format (unwrap _source if present)
@@ -478,21 +330,17 @@ function parseEvent(rawEvent, index) {
 
     const hostInfo = extractHostIdentifier(event);
     const category = extractCategory(event);
-    const connection = extractConnectionInfo(event);
     const summary = extractSummary(event);
-    const details = extractDetails(event);
 
     // Use ES _id if available, otherwise generate one
-    const eventId = esId || generateEventId(event, timestamp, index);
+    const eventId = esId || generateEventId(event, timestamp);
 
     return {
         id: eventId,
         timestamp: timestamp,
         host: hostInfo,
         category: category,
-        connection: connection,
         summary: summary,
-        details: details,
         raw: event
     };
 }
@@ -503,7 +351,7 @@ function parseEvent(rawEvent, index) {
  * Extracts timestamps, categories, and creates unique IDs for deduplication.
  *
  * @param {string|Array} input - JSON string, NDJSON string, or array of event objects
- * @returns {Array} Array of parsed event objects with id, timestamp, category, summary, details, and raw properties
+ * @returns {Array} Array of parsed event objects with id, timestamp, host, category, summary, and raw properties
  */
 export function parseEvents(input) {
     let rawEvents = [];
@@ -596,30 +444,34 @@ export function buildHostRegistry(events) {
             }
         }
 
-        // Also collect IPs from connections
-        if (event.connection) {
-            if (event.connection.sourceHostname) {
-                const sourceKey = event.connection.sourceHostname.toLowerCase();
+        // Also collect IPs from network connections in raw data
+        if (hasConnection(event.raw)) {
+            const sourceDomain = getNestedString(event.raw, 'source.domain');
+            const sourceIp = getNestedString(event.raw, 'source.ip');
+            if (sourceDomain) {
+                const sourceKey = sourceDomain.toLowerCase();
                 if (!registry.has(sourceKey)) {
                     registry.set(sourceKey, {
-                        hostname: event.connection.sourceHostname,
+                        hostname: sourceDomain,
                         ips: new Set(),
-                        displayName: event.connection.sourceHostname
+                        displayName: sourceDomain
                     });
                 }
-                registry.get(sourceKey).ips.add(event.connection.sourceIp);
+                registry.get(sourceKey).ips.add(sourceIp);
             }
 
-            if (event.connection.destHostname) {
-                const destKey = event.connection.destHostname.toLowerCase();
+            const destDomain = getNestedString(event.raw, 'destination.domain');
+            const destIp = getNestedString(event.raw, 'destination.ip');
+            if (destDomain) {
+                const destKey = destDomain.toLowerCase();
                 if (!registry.has(destKey)) {
                     registry.set(destKey, {
-                        hostname: event.connection.destHostname,
+                        hostname: destDomain,
                         ips: new Set(),
-                        displayName: event.connection.destHostname
+                        displayName: destDomain
                     });
                 }
-                registry.get(destKey).ips.add(event.connection.destIp);
+                registry.get(destKey).ips.add(destIp);
             }
         }
     });
@@ -665,13 +517,14 @@ export function identifyConnections(events, hostRegistry) {
     const connections = [];
 
     events.forEach(event => {
-        if (!event.connection) return;
+        if (!hasConnection(event.raw)) return;
 
-        const conn = event.connection;
+        const sourceIp = getNestedString(event.raw, 'source.ip');
+        const destIp = getNestedString(event.raw, 'destination.ip');
 
         // Resolve IPs to hostnames
-        const sourceHost = hostRegistry.resolveIp(conn.sourceIp);
-        const destHost = hostRegistry.resolveIp(conn.destIp);
+        const sourceHost = hostRegistry.resolveIp(sourceIp);
+        const destHost = hostRegistry.resolveIp(destIp);
 
         // Skip if same host (after resolution)
         if (sourceHost.toLowerCase() === destHost.toLowerCase()) return;
@@ -680,14 +533,14 @@ export function identifyConnections(events, hostRegistry) {
             eventId: event.id,
             timestamp: event.timestamp,
             sourceHost: sourceHost,
-            sourceIp: conn.sourceIp,
-            sourcePort: conn.sourcePort,
+            sourceIp: sourceIp,
+            sourcePort: getNestedString(event.raw, 'source.port'),
             destHost: destHost,
-            destIp: conn.destIp,
-            destPort: conn.destPort,
-            protocol: conn.protocol,
-            direction: conn.direction,
-            communityId: conn.communityId
+            destIp: destIp,
+            destPort: getNestedString(event.raw, 'destination.port'),
+            protocol: getFirstValue(event.raw, ['network.transport', 'network.protocol']),
+            direction: getNestedValue(event.raw, 'network.direction'),
+            communityId: getNestedValue(event.raw, 'network.community_id')
         });
     });
 

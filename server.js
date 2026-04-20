@@ -10,10 +10,9 @@ import WebSocket, { WebSocketServer } from 'ws';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { EventStore } from './server/event-store.js';
-import { loadEvents, saveEvents } from './server/persistence.js';
+import { loadData, saveData } from './server/persistence.js';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const app = express();
 const server = http.createServer(app);
@@ -23,13 +22,19 @@ const wss = new WebSocketServer({ server });
 const PORT = process.env.PORT || 12345;
 const DATA_FILE = process.env.DATA_FILE || './data/timeline.json';
 const SAVE_INTERVAL = 30000;
+const HEARTBEAT_INTERVAL = 30000;
+const HEARTBEAT_TIMEOUT = 90000;
 
 // State
 const store = new EventStore();
 let isDirty = false;
 
 /**
- * Broadcast message to all connected clients except sender.
+ * Broadcast a message to all connected clients, optionally excluding one (the sender).
+ * Serializes the payload once and sends the string to each client.
+ *
+ * @param {Object} message - Message object to serialize and broadcast
+ * @param {WebSocket|null} [excludeWs=null] - Client to skip (typically the sender)
  */
 function broadcast(message, excludeWs = null) {
     const msgString = JSON.stringify(message);
@@ -41,29 +46,30 @@ function broadcast(message, excludeWs = null) {
 }
 
 /**
- * Broadcast message to all connected clients.
+ * Builds a full-state SYNC message payload from the store.
+ *
+ * @returns {{ type: string, events: Array, annotations: Object }} SYNC message
  */
-function broadcastAll(message) {
-    const msgString = JSON.stringify(message);
-    wss.clients.forEach(client => {
-        if (client.readyState === WebSocket.OPEN) {
-            client.send(msgString);
-        }
-    });
+function buildSyncMessage() {
+    return {
+        type: 'SYNC',
+        events: store.getAll(),
+        annotations: store.getAnnotations()
+    };
 }
 
 // WebSocket connection handling
 wss.on('connection', (ws) => {
     console.log('Client connected. Total clients:', wss.clients.size);
 
+    // Track last pong for heartbeat
+    ws.lastPong = Date.now();
+
     // Send current state to new client
-    ws.send(JSON.stringify({
-        type: 'SYNC',
-        events: store.getAll()
-    }));
+    ws.send(JSON.stringify(buildSyncMessage()));
 
     // Broadcast user count update
-    broadcastAll({
+    broadcast({
         type: 'USER_COUNT',
         count: wss.clients.size
     });
@@ -71,8 +77,17 @@ wss.on('connection', (ws) => {
     ws.on('message', (data) => {
         try {
             const message = JSON.parse(data);
+            if (!message.type || typeof message.type !== 'string') {
+                console.warn('Received message with missing or invalid type');
+                return;
+            }
+
             switch (message.type) {
                 case 'ADD_EVENTS': {
+                    if (!Array.isArray(message.events)) {
+                        console.warn('ADD_EVENTS: missing or invalid events array');
+                        break;
+                    }
                     const result = store.addEvents(message.events);
                     if (result.added.length > 0) {
                         isDirty = true;
@@ -90,10 +105,14 @@ wss.on('connection', (ws) => {
                 }
 
                 case 'DELETE_EVENT': {
+                    if (!message.eventId || typeof message.eventId !== 'string') {
+                        console.warn('DELETE_EVENT: missing or invalid eventId');
+                        break;
+                    }
                     const removed = store.deleteEvent(message.eventId);
                     if (removed) {
                         isDirty = true;
-                        broadcastAll({ type: 'EVENT_DELETED', eventId: message.eventId });
+                        broadcast({ type: 'EVENT_DELETED', eventId: message.eventId });
                     }
                     break;
                 }
@@ -101,15 +120,51 @@ wss.on('connection', (ws) => {
                 case 'CLEAR': {
                     store.clear();
                     isDirty = true;
-                    broadcastAll({ type: 'CLEARED' });
+                    broadcast({ type: 'CLEARED' });
+                    break;
+                }
+
+                case 'ANNOTATE_EVENT': {
+                    if (!message.eventId || typeof message.eventId !== 'string') {
+                        console.warn('ANNOTATE_EVENT: missing or invalid eventId');
+                        break;
+                    }
+                    const annotation = store.setAnnotation(message.eventId, {
+                        comment: message.comment,
+                        mitreTactic: message.mitreTactic,
+                        mitreTechnique: message.mitreTechnique
+                    });
+                    isDirty = true;
+                    broadcast({
+                        type: 'ANNOTATION_UPDATED',
+                        eventId: message.eventId,
+                        annotation
+                    });
+                    break;
+                }
+
+                case 'DELETE_ANNOTATION': {
+                    if (!message.eventId || typeof message.eventId !== 'string') {
+                        console.warn('DELETE_ANNOTATION: missing or invalid eventId');
+                        break;
+                    }
+                    if (store.deleteAnnotation(message.eventId)) {
+                        isDirty = true;
+                        broadcast({
+                            type: 'ANNOTATION_DELETED',
+                            eventId: message.eventId
+                        });
+                    }
                     break;
                 }
 
                 case 'REQUEST_SYNC': {
-                    ws.send(JSON.stringify({
-                        type: 'SYNC',
-                        events: store.getAll()
-                    }));
+                    ws.send(JSON.stringify(buildSyncMessage()));
+                    break;
+                }
+
+                case 'PONG': {
+                    ws.lastPong = Date.now();
                     break;
                 }
 
@@ -123,7 +178,7 @@ wss.on('connection', (ws) => {
 
     ws.on('close', () => {
         console.log('Client disconnected. Total clients:', wss.clients.size);
-        broadcastAll({
+        broadcast({
             type: 'USER_COUNT',
             count: wss.clients.size
         });
@@ -139,10 +194,17 @@ app.use(express.static(path.join(__dirname)));
 
 // Health check endpoint
 app.get('/health', (req, res) => {
+    const mem = process.memoryUsage();
     res.json({
         status: 'ok',
+        uptime: Math.floor(process.uptime()),
         clients: wss.clients.size,
-        events: store.length
+        events: store.length,
+        annotations: Object.keys(store.getAnnotations()).length,
+        memory: {
+            heapUsedMB: Math.round(mem.heapUsed / 1024 / 1024),
+            heapTotalMB: Math.round(mem.heapTotal / 1024 / 1024)
+        }
     });
 });
 
@@ -152,32 +214,44 @@ app.get('/api/events', (req, res) => {
 });
 
 // Load data on startup
-store.load(loadEvents(DATA_FILE));
+const loaded = await loadData(DATA_FILE);
+store.load(loaded.events, loaded.annotations);
 
 // Auto-save interval
 setInterval(() => {
     if (isDirty) {
-        saveEvents(DATA_FILE, store.getAll());
         isDirty = false;
+        saveData(DATA_FILE, store.getAll(), store.getAnnotations());
     }
 }, SAVE_INTERVAL);
 
-// Save on shutdown
-process.on('SIGINT', () => {
-    console.log('\nShutting down...');
-    if (isDirty) {
-        saveEvents(DATA_FILE, store.getAll());
-    }
-    process.exit(0);
-});
+// Heartbeat: ping all clients, terminate stale connections
+setInterval(() => {
+    const now = Date.now();
+    wss.clients.forEach(client => {
+        if (client.readyState !== WebSocket.OPEN) return;
 
-process.on('SIGTERM', () => {
+        if (now - client.lastPong > HEARTBEAT_TIMEOUT) {
+            console.log('Terminating stale client (no pong received)');
+            client.terminate();
+            return;
+        }
+
+        client.send(JSON.stringify({ type: 'PING' }));
+    });
+}, HEARTBEAT_INTERVAL);
+
+// Save on shutdown
+async function shutdown() {
     console.log('\nShutting down...');
     if (isDirty) {
-        saveEvents(DATA_FILE, store.getAll());
+        await saveData(DATA_FILE, store.getAll(), store.getAnnotations());
     }
     process.exit(0);
-});
+}
+
+process.on('SIGINT', shutdown);
+process.on('SIGTERM', shutdown);
 
 // Start server
 server.listen(PORT, '0.0.0.0', () => {

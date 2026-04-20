@@ -13,7 +13,10 @@ const config = {
     };
 
 /**
- * Calculate top margin based on floating input box position
+ * Calculate top margin based on the floating input box position so that swim lanes
+ * start below any overlapping chrome.
+ *
+ * @returns {number} Top margin in pixels (falls back to 110 when the input box is absent)
  */
 function calculateTopMargin() {
     const inputBox = document.querySelector('.floating-input');
@@ -29,13 +32,6 @@ function calculateTopMargin() {
 let svg, container, mainGroup;
 let xAxis, zoom;
 let currentData = null;
-let currentFilters = {
-    network: true,
-    file: true,
-    process: true,
-    authentication: true,
-    other: true
-};
 let onEventClick = null;
 
 /**
@@ -86,9 +82,10 @@ export function initTimelineVisualization(containerId, eventClickHandler) {
  * @param {Array} events - Array of parsed event objects to display
  * @param {Object} hostRegistry - Host registry mapping hosts to their events
  * @param {Array} connections - Array of cross-host connection objects
+ * @param {Map} annotations - Map of eventId to annotation for styling annotated events
  */
-export function renderTimelineVisualization(events, hostRegistry, connections) {
-    currentData = {events, hostRegistry, connections};
+export function renderTimelineVisualization(events, hostRegistry, connections, annotations) {
+    currentData = {events, hostRegistry, connections, annotations};
     const hosts = hostRegistry.getHostList();
 
     // Update top margin based on input box position
@@ -103,11 +100,8 @@ export function renderTimelineVisualization(events, hostRegistry, connections) {
     svg.attr('width', width)
         .attr('height', height);
 
-    // Filter events based on current filters
-    const filteredEvents = filterEvents(events);
-
     // Calculate time domain
-    const timeExtent = d3.extent(filteredEvents, d => d.timestamp);
+    const timeExtent = d3.extent(events, d => d.timestamp);
     if (!timeExtent[0] || !timeExtent[1]) {
         console.warn('No valid timestamps in events');
         return;
@@ -139,11 +133,15 @@ export function renderTimelineVisualization(events, hostRegistry, connections) {
     renderAxis(xScale, height);
     renderGrid(xScale, yScale, width, height);
     renderConnections(connections, xScale, yScale, hostRegistry);
-    renderEvents(filteredEvents, xScale, yScale, hostRegistry);
+    renderEvents(events, xScale, yScale, hostRegistry, annotations);
 }
 
 /**
- * Render swim lanes
+ * Render swim lanes with background, midline, label, and IP for each host.
+ *
+ * @param {Array<{hostname: string, ips: string[]}>} hosts - Host list from the registry
+ * @param {Function} yScale - D3 band scale mapping hostname to y position
+ * @param {number} width - Total SVG width in pixels
  */
 function renderLanes(hosts, yScale, width) {
     const lanesGroup = mainGroup.select('.lanes-group');
@@ -157,6 +155,9 @@ function renderLanes(hosts, yScale, width) {
 
     lanesEnter.append('rect')
         .attr('class', 'lane-bg');
+
+    lanesEnter.append('line')
+        .attr('class', 'swim-lane-midline');
 
     lanesEnter.append('text')
         .attr('class', 'swim-lane-label');
@@ -172,18 +173,24 @@ function renderLanes(hosts, yScale, width) {
         .attr('y', d => yScale(d.hostname))
         .attr('width', width)
         .attr('height', yScale.bandwidth())
-        .attr('fill', (d, i) => i % 2 === 0 ? 'rgba(255,255,255,0.02)' : 'transparent');
+        .attr('fill', (d, i) => i % 2 === 0 ? 'rgba(255,255,255,0.008)' : 'transparent');
+
+    lanesUpdate.select('.swim-lane-midline')
+        .attr('x1', config.margin.left)
+        .attr('x2', width - config.margin.right)
+        .attr('y1', d => yScale(d.hostname) + yScale.bandwidth() / 2)
+        .attr('y2', d => yScale(d.hostname) + yScale.bandwidth() / 2);
 
     lanesUpdate.select('.swim-lane-label')
-        .attr('x', 44)
+        .attr('x', 20)
         .attr('y', d => yScale(d.hostname) + yScale.bandwidth() / 2)
         .attr('dy', '-0.2em')
         .text(d => d.hostname);
 
     lanesUpdate.select('.swim-lane-ip')
-        .attr('x', 44)
+        .attr('x', 20)
         .attr('y', d => yScale(d.hostname) + yScale.bandwidth() / 2)
-        .attr('dy', '1em')
+        .attr('dy', '1.1em')
         .text(d => d.ips.length > 0 ? d.ips[0] : '');
 
     // Exit
@@ -191,7 +198,10 @@ function renderLanes(hosts, yScale, width) {
 }
 
 /**
- * Render time axis
+ * Render top and bottom time axes using an appropriate format for the visible range.
+ *
+ * @param {Function} xScale - D3 time scale
+ * @param {number} height - Total SVG height in pixels
  */
 function renderAxis(xScale, height) {
     const axisGroup = mainGroup.select('.axis-group');
@@ -218,18 +228,32 @@ function renderAxis(xScale, height) {
 }
 
 /**
- * Render grid lines
+ * Render vertical grid lines across the timeline.
+ *
+ * @param {Function} xScale - D3 time scale
+ * @param {Function} yScale - D3 band scale (unused but kept for call-site symmetry)
+ * @param {number} width - Total SVG width in pixels (unused; reserved)
+ * @param {number} height - Total SVG height in pixels
  */
 function renderGrid(xScale, yScale, width, height) {
     const gridGroup = mainGroup.select('.grid-group');
     gridGroup.selectAll('*').remove();
+    drawGridLines(gridGroup, xScale, height);
+}
 
-    // Vertical grid lines
+/**
+ * Draws vertical grid lines for the current x scale onto the supplied group.
+ * Used by both the initial render and the zoom handler.
+ *
+ * @param {Object} gridGroup - D3 selection of the group that should hold grid lines
+ * @param {Function} xScale - D3 time scale used to position the ticks
+ * @param {number} height - Total SVG height in pixels
+ */
+function drawGridLines(gridGroup, xScale, height) {
     const ticks = xScale.ticks(20);
     gridGroup.selectAll('.grid-line')
         .data(ticks)
-        .enter()
-        .append('line')
+        .join('line')
         .attr('class', 'grid-line')
         .attr('x1', d => xScale(d))
         .attr('x2', d => xScale(d))
@@ -238,7 +262,29 @@ function renderGrid(xScale, yScale, width, height) {
 }
 
 /**
- * Render cross-host connection lines
+ * Builds the SVG path string for a cross-host connection arc.
+ *
+ * @param {{timestamp: Date, sourceHost: string, destHost: string}} d - Connection datum
+ * @param {Function} xScale - D3 time scale
+ * @param {Function} yScale - D3 band scale mapping hostname to y position
+ * @returns {string} SVG path `d` attribute describing a quadratic arc between source and dest hosts
+ */
+function connectionPath(d, xScale, yScale) {
+    const x = xScale(d.timestamp);
+    const y1 = yScale(d.sourceHost) + yScale.bandwidth() / 2;
+    const y2 = yScale(d.destHost) + yScale.bandwidth() / 2;
+    const midY = (y1 + y2) / 2;
+    const curveOffset = Math.abs(y2 - y1) * 0.1;
+    return `M ${x} ${y1} Q ${x + curveOffset} ${midY}, ${x} ${y2}`;
+}
+
+/**
+ * Render cross-host connection arcs, filtering to connections between visible hosts.
+ *
+ * @param {Array} connections - Connection objects from identifyConnections()
+ * @param {Function} xScale - D3 time scale
+ * @param {Function} yScale - D3 band scale mapping hostname to y position
+ * @param {Object} hostRegistry - Host registry used to determine which hosts are currently visible
  */
 function renderConnections(connections, xScale, yScale, hostRegistry) {
     const connectionsGroup = mainGroup.select('.connections-group');
@@ -259,18 +305,7 @@ function renderConnections(connections, xScale, yScale, hostRegistry) {
     lines.enter()
         .append('path')
         .attr('class', 'connection-line')
-        .attr('d', d => {
-            const x = xScale(d.timestamp);
-            const y1 = yScale(d.sourceHost) + yScale.bandwidth() / 2;
-            const y2 = yScale(d.destHost) + yScale.bandwidth() / 2;
-
-            // Draw curved line
-            const midY = (y1 + y2) / 2;
-            const curveOffset = Math.abs(y2 - y1) * 0.1;
-
-            return `M ${x} ${y1}
-                        Q ${x + curveOffset} ${midY}, ${x} ${y2}`;
-        })
+        .attr('d', d => connectionPath(d, xScale, yScale))
         .on('mouseover', showConnectionTooltip)
         .on('mouseout', hideTooltip)
         .on('click', (event, d) => {
@@ -282,26 +317,23 @@ function renderConnections(connections, xScale, yScale, hostRegistry) {
         });
 
     // Update
-    lines.attr('d', d => {
-        const x = xScale(d.timestamp);
-        const y1 = yScale(d.sourceHost) + yScale.bandwidth() / 2;
-        const y2 = yScale(d.destHost) + yScale.bandwidth() / 2;
-
-        const midY = (y1 + y2) / 2;
-        const curveOffset = Math.abs(y2 - y1) * 0.1;
-
-        return `M ${x} ${y1}
-                    Q ${x + curveOffset} ${midY}, ${x} ${y2}`;
-    });
+    lines.attr('d', d => connectionPath(d, xScale, yScale));
 
     // Exit
     lines.exit().remove();
 }
 
 /**
- * Render event dots on swim lanes
+ * Render event dots on their host swim lanes. Annotated events are filled and sized
+ * larger than raw events to serve as the visual "figure" above the "ground".
+ *
+ * @param {Array} events - Parsed event objects
+ * @param {Function} xScale - D3 time scale
+ * @param {Function} yScale - D3 band scale mapping hostname to y position
+ * @param {Object} hostRegistry - Host registry used for IP-to-host resolution
+ * @param {Map} annotations - Map of eventId to annotation (used to mark annotated dots)
  */
-function renderEvents(events, xScale, yScale, hostRegistry) {
+function renderEvents(events, xScale, yScale, hostRegistry, annotations) {
     const eventsGroup = mainGroup.select('.events-group');
 
     // Group events by host
@@ -312,11 +344,13 @@ function renderEvents(events, xScale, yScale, hostRegistry) {
         let hostKey = event.host.hostname;
 
         // For network events, also check if we should place on source/dest host
-        if (event.connection && event.host.hostname === 'Unknown') {
-            // Try to place on source host
-            const sourceHost = hostRegistry.resolveIp(event.connection.sourceIp);
-            if (sourceHost && sourceHost !== event.connection.sourceIp) {
-                hostKey = sourceHost;
+        if (event.host.hostname === 'Unknown' && event.raw) {
+            const sourceIp = event.raw.source?.ip;
+            if (sourceIp) {
+                const sourceHost = hostRegistry.resolveIp(Array.isArray(sourceIp) ? sourceIp[0] : sourceIp);
+                if (sourceHost && sourceHost !== sourceIp) {
+                    hostKey = sourceHost;
+                }
             }
         }
 
@@ -339,15 +373,25 @@ function renderEvents(events, xScale, yScale, hostRegistry) {
     const dots = eventsGroup.selectAll('.event-dot')
         .data(allEvents, d => d.id);
 
+    const isAnnotated = d => annotations && annotations.has(d.id);
+    const dotClass  = d => isAnnotated(d) ? `event-dot ${d.category} annotated` : `event-dot ${d.category}`;
+    const dotRadius = d => isAnnotated(d) ? 5 : 3.5;
+
     // Enter
     dots.enter()
         .append('circle')
-        .attr('class', d => `event-dot ${d.category}`)
-        .attr('r', config.eventRadius)
+        .attr('class', dotClass)
+        .attr('r', dotRadius)
         .attr('cx', d => xScale(d.timestamp))
         .attr('cy', d => yScale(d.renderHost) + yScale.bandwidth() / 2)
-        .on('mouseover', showEventTooltip)
-        .on('mouseout', hideTooltip)
+        .on('mouseover', function (event, d) {
+            d3.select(this).attr('r', dotRadius(d) + 2);
+            showEventTooltip(event, d);
+        })
+        .on('mouseout', function (event, d) {
+            d3.select(this).attr('r', dotRadius(d));
+            hideTooltip();
+        })
         .on('click', (event, d) => {
             event.stopPropagation();
             if (onEventClick) {
@@ -358,50 +402,17 @@ function renderEvents(events, xScale, yScale, hostRegistry) {
     // Update
     dots.attr('cx', d => xScale(d.timestamp))
         .attr('cy', d => yScale(d.renderHost) + yScale.bandwidth() / 2)
-        .attr('class', d => `event-dot ${d.category}`);
+        .attr('r', dotRadius)
+        .attr('class', dotClass);
 
     // Exit
     dots.exit().remove();
 }
 
 /**
- * Filter events based on category filters
- */
-function filterEvents(events) {
-    return events.filter(event => {
-        const category = event.category;
-        if (category === 'network') return currentFilters.network;
-        if (category === 'file') return currentFilters.file;
-        if (category === 'process') return currentFilters.process;
-        if (category === 'authentication') return currentFilters.authentication;
-        return currentFilters.other;
-    });
-}
-
-/**
- * Updates which event categories are visible on the timeline.
- * Triggers a re-render with the new filter settings applied.
+ * Handle a D3 zoom/pan event by rescaling the time axis, grid, event dots, and connections.
  *
- * @param {Object} filters - Category visibility flags
- * @param {boolean} filters.network - Show network events
- * @param {boolean} filters.file - Show file events
- * @param {boolean} filters.process - Show process events
- * @param {boolean} filters.authentication - Show authentication events
- * @param {boolean} filters.other - Show uncategorized events
- */
-export function setEventCategoryFilters(filters) {
-    currentFilters = {...currentFilters, ...filters};
-    if (currentData) {
-        renderTimelineVisualization(
-            currentData.events,
-            currentData.hostRegistry,
-            currentData.connections
-        );
-    }
-}
-
-/**
- * Handle zoom events
+ * @param {{transform: Object}} event - D3 zoom event
  */
 function handleZoom(event) {
     if (!currentData || !currentData.xScale) return;
@@ -419,18 +430,7 @@ function handleZoom(event) {
         });
 
     // Update grid
-    const ticks = newXScale.ticks(20);
-    const gridGroup = mainGroup.select('.grid-group');
-    gridGroup.selectAll('.grid-line').remove();
-    gridGroup.selectAll('.grid-line')
-        .data(ticks)
-        .enter()
-        .append('line')
-        .attr('class', 'grid-line')
-        .attr('x1', d => newXScale(d))
-        .attr('x2', d => newXScale(d))
-        .attr('y1', config.margin.top)
-        .attr('y2', currentData.height - config.margin.bottom);
+    drawGridLines(mainGroup.select('.grid-group'), newXScale, currentData.height);
 
     // Update event positions
     mainGroup.select('.events-group')
@@ -440,15 +440,7 @@ function handleZoom(event) {
     // Update connection lines
     mainGroup.select('.connections-group')
         .selectAll('.connection-line')
-        .attr('d', d => {
-            const x = newXScale(d.timestamp);
-            const y1 = currentData.yScale(d.sourceHost) + currentData.yScale.bandwidth() / 2;
-            const y2 = currentData.yScale(d.destHost) + currentData.yScale.bandwidth() / 2;
-            const midY = (y1 + y2) / 2;
-            const curveOffset = Math.abs(y2 - y1) * 0.1;
-
-            return `M ${x} ${y1} Q ${x + curveOffset} ${midY}, ${x} ${y2}`;
-        });
+        .attr('d', d => connectionPath(d, newXScale, currentData.yScale));
 }
 
 /**
@@ -476,7 +468,10 @@ export function zoomReset() {
 }
 
 /**
- * Show tooltip for event dot
+ * Show the hover tooltip for an event dot.
+ *
+ * @param {MouseEvent} event - Source mouse event (used for pointer coordinates)
+ * @param {Object} d - Parsed event datum bound to the dot
  */
 function showEventTooltip(event, d) {
     const tooltip = d3.select('.tooltip');
@@ -495,7 +490,10 @@ function showEventTooltip(event, d) {
 }
 
 /**
- * Show tooltip for connection line
+ * Show the hover tooltip for a cross-host connection arc.
+ *
+ * @param {MouseEvent} event - Source mouse event (used for pointer coordinates)
+ * @param {Object} d - Connection datum bound to the arc
  */
 function showConnectionTooltip(event, d) {
     const tooltip = d3.select('.tooltip');
@@ -516,21 +514,22 @@ function showConnectionTooltip(event, d) {
 }
 
 /**
- * Hide tooltip
+ * Hide the hover tooltip.
  */
 function hideTooltip() {
     d3.select('.tooltip').style('opacity', 0);
 }
 
 /**
- * Handle window resize
+ * Re-render the timeline with the last rendered data after a window resize.
  */
 function handleResize() {
     if (currentData) {
         renderTimelineVisualization(
             currentData.events,
             currentData.hostRegistry,
-            currentData.connections
+            currentData.connections,
+            currentData.annotations
         );
     }
 }
@@ -549,7 +548,11 @@ export function clearTimelineVisualization() {
 }
 
 /**
- * Get appropriate time format based on visible time range
+ * Pick a `d3.timeFormat` appropriate for the visible time range — from multi-year
+ * down to sub-minute — so axis ticks stay readable at any zoom level.
+ *
+ * @param {Function} scale - D3 time scale whose domain determines the format
+ * @returns {Function} A `d3.timeFormat` formatter
  */
 function getTimeFormat(scale) {
     const domain = scale.domain();
@@ -583,7 +586,11 @@ function getTimeFormat(scale) {
 }
 
 /**
- * Debounce utility
+ * Debounce a function so it only fires after `wait` ms of inactivity.
+ *
+ * @param {Function} func - Function to debounce
+ * @param {number} wait - Quiet period in milliseconds before invoking `func`
+ * @returns {Function} Debounced wrapper that forwards all arguments
  */
 function debounce(func, wait) {
     let timeout;

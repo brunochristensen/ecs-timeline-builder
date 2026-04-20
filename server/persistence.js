@@ -4,46 +4,47 @@
  * No knowledge of event structure, WebSocket, or business logic.
  */
 
-import fs from 'fs';
+import fs from 'fs/promises';
 import path from 'path';
 
 /**
- * Loads events from a JSON file.
+ * Loads timeline data from a JSON file.
  *
  * @param {string} filePath - Path to the JSON data file
- * @returns {Array} Parsed events array, or empty array on failure
+ * @returns {Promise<{ events: Array, annotations: Object }>} Loaded data
  */
-export function loadEvents(filePath) {
+export async function loadData(filePath) {
     try {
-        if (fs.existsSync(filePath)) {
-            const data = fs.readFileSync(filePath, 'utf8');
-            const events = JSON.parse(data);
-            console.log(`Loaded ${events.length} events from ${filePath}`);
-            return events;
-        }
-        console.log('No existing data file, starting fresh');
-        return [];
+        const raw = await fs.readFile(filePath, 'utf8');
+        const data = JSON.parse(raw);
+        const events = data.events || [];
+        const annotations = data.annotations || {};
+        console.log(`Loaded ${events.length} events, ${Object.keys(annotations).length} annotations from ${filePath}`);
+        return { events, annotations };
     } catch (error) {
-        console.error('Error loading data:', error.message);
-        return [];
+        if (error.code === 'ENOENT') {
+            console.log('No existing data file, starting fresh');
+        } else {
+            console.error('Error loading data:', error.message);
+        }
+        return { events: [], annotations: {} };
     }
 }
 
 /**
- * Saves events to a JSON file. Creates the directory if it doesn't exist.
+ * Saves timeline data to a JSON file. Creates the directory if it doesn't exist.
  *
  * @param {string} filePath - Path to the JSON data file
  * @param {Array} events - Events array to save
- * @returns {boolean} True if save succeeded, false on failure
+ * @param {Object} annotations - Annotations object to save
+ * @returns {Promise<boolean>} True if save succeeded, false on failure
  */
-export function saveEvents(filePath, events) {
+export async function saveData(filePath, events, annotations) {
     try {
-        const dataDir = path.dirname(filePath);
-        if (!fs.existsSync(dataDir)) {
-            fs.mkdirSync(dataDir, { recursive: true });
-        }
-        fs.writeFileSync(filePath, JSON.stringify(events, null, 2));
-        console.log(`Saved ${events.length} events to ${filePath}`);
+        await fs.mkdir(path.dirname(filePath), { recursive: true });
+        const data = { events, annotations };
+        await fs.writeFile(filePath, JSON.stringify(data));
+        console.log(`Saved ${events.length} events, ${Object.keys(annotations).length} annotations to ${filePath}`);
         return true;
     } catch (error) {
         console.error('Error saving data:', error.message);

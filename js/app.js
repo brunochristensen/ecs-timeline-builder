@@ -1,16 +1,17 @@
 import {
     initTimelineVisualization,
     renderTimelineVisualization,
-    setEventCategoryFilters,
     zoomIn,
     zoomOut,
     zoomReset,
     clearTimelineVisualization
 } from "./timeline.js";
 import { formatDuration } from "./utils.js";
-import { renderEventDetailPanel } from "./detail-renderer.js";
-import { initWebSocketSync, isConnected, sendEventsToServer, sendDeleteToServer, sendClearToServer } from "./sync.js";
+import { renderEventDetailPanel, renderMitreOptions } from "./detail-renderer.js";
+import { initWebSocketSync, isConnected, sendEventsToServer, sendDeleteToServer, sendClearToServer, sendAnnotationToServer, sendDeleteAnnotationToServer } from "./sync.js";
 import { state } from "./state.js";
+import { TECHNIQUES } from "./mitre.js";
+import { initGapDetection } from "./gap-detection.js";
 
 // DOM Elements
 const dropZone = document.getElementById('drop-zone');
@@ -27,17 +28,21 @@ const closeDetailBtn = document.getElementById('close-detail');
 const sidebar = document.getElementById('sidebar');
 const sidebarToggle = document.getElementById('sidebar-toggle');
 
-// Filter checkboxes
-const filterNetwork = document.getElementById('filter-network');
-const filterFile = document.getElementById('filter-file');
-const filterProcess = document.getElementById('filter-process');
-const filterAuth = document.getElementById('filter-auth');
-const filterOther = document.getElementById('filter-other');
-
 // Zoom buttons
 const zoomInBtn = document.getElementById('zoom-in');
 const zoomOutBtn = document.getElementById('zoom-out');
 const zoomResetBtn = document.getElementById('zoom-reset');
+
+// Status bar elements
+const statusLed = document.getElementById('status-led');
+const statusLink = document.getElementById('status-link');
+const statusCase = document.getElementById('status-case');
+const statusEventsEl = document.getElementById('status-events');
+const statusHostsEl = document.getElementById('status-hosts');
+const statusSyncEl = document.getElementById('status-sync');
+
+// Currently displayed event in the detail panel (for annotation refresh)
+let currentDetailEvent = null;
 
 /**
  * Initializes the application on page load.
@@ -48,73 +53,115 @@ function init() {
 
     setupDragDrop();
     setupPasteInput();
-    setupFilters();
     setupZoomControls();
     setupDetailPanel();
     setupSidebar();
     setupHeaderControls();
+    initCaseId();
     subscribeToState();
+    initGapDetection();
 
     initWebSocketSync();
+}
+
+/**
+ * Generates a session-scoped case identifier for the status bar.
+ * Format: CASE-YYYY-NNNN where NNNN is the current day-of-year.
+ */
+function initCaseId() {
+    const now = new Date();
+    const start = new Date(now.getFullYear(), 0, 0);
+    const dayOfYear = Math.floor((now - start) / 86400000);
+    const padded = String(dayOfYear).padStart(4, '0');
+    if (statusCase) statusCase.textContent = `CASE-${now.getFullYear()}-${padded}`;
+}
+
+/**
+ * Updates the last-sync timestamp in the status bar to the current time.
+ */
+function stampSync() {
+    if (!statusSyncEl) return;
+    const now = new Date();
+    const hh = String(now.getHours()).padStart(2, '0');
+    const mm = String(now.getMinutes()).padStart(2, '0');
+    const ss = String(now.getSeconds()).padStart(2, '0');
+    statusSyncEl.textContent = `${hh}:${mm}:${ss}Z`;
+}
+
+/**
+ * Refreshes the timeline visualization and UI controls to match current state.
+ * Renders events when present, otherwise shows the empty state.
+ */
+function refreshTimelineUi() {
+    const hasEvents = state.events.length > 0;
+    clearBtn.disabled = !hasEvents;
+    exportBtn.disabled = !hasEvents;
+
+    if (hasEvents) {
+        updateStats();
+        renderTimelineVisualization(state.events, state.hostRegistry, state.connections, state.annotations);
+    } else {
+        resetStats();
+        clearTimelineVisualization();
+    }
+    stampSync();
+}
+
+/**
+ * Re-renders the detail panel if it is open for the given event ID.
+ *
+ * @param {string} eventId - The event ID whose detail panel should refresh
+ */
+function refreshDetailIfOpen(eventId) {
+    if (currentDetailEvent && currentDetailEvent.id === eventId) {
+        showEventDetail(currentDetailEvent);
+    }
 }
 
 /**
  * Subscribes to state change events and updates UI accordingly.
  */
 function subscribeToState() {
-    state.on('events:added', () => {
-        updateStats();
-        clearBtn.disabled = false;
-        exportBtn.disabled = false;
-        renderTimelineVisualization(state.events, state.hostRegistry, state.connections);
-    });
-
-    state.on('events:synced', () => {
-        if (state.events.length > 0) {
-            updateStats();
-            clearBtn.disabled = false;
-            exportBtn.disabled = false;
-            renderTimelineVisualization(state.events, state.hostRegistry, state.connections);
-        } else {
-            resetStats();
-            clearBtn.disabled = true;
-            exportBtn.disabled = true;
-            clearTimelineVisualization();
-        }
-    });
+    state.on('events:added', refreshTimelineUi);
+    state.on('events:synced', refreshTimelineUi);
 
     state.on('event:deleted', () => {
         eventDetail.hidden = true;
-        if (state.events.length > 0) {
-            updateStats();
-            renderTimelineVisualization(state.events, state.hostRegistry, state.connections);
-        } else {
-            resetStats();
-            clearBtn.disabled = true;
-            exportBtn.disabled = true;
-            clearTimelineVisualization();
-        }
+        refreshTimelineUi();
     });
 
     state.on('events:cleared', () => {
         jsonInput.value = '';
         eventDetail.hidden = true;
-        clearBtn.disabled = true;
-        exportBtn.disabled = true;
-        resetStats();
-        clearTimelineVisualization();
+        refreshTimelineUi();
     });
 
     state.on('connection:changed', (connected) => {
-        const usersEl = document.getElementById('stat-users');
+        if (statusLed) {
+            statusLed.classList.toggle('connected', connected);
+            statusLed.classList.toggle('disconnected', !connected);
+        }
+        if (statusLink) {
+            statusLink.textContent = connected ? 'ACTIVE' : 'RECONNECTING';
+        }
         if (!connected) {
-            usersEl.textContent = 'Reconnecting...';
+            document.getElementById('stat-users').textContent = '—';
         }
     });
 
     state.on('usercount:changed', (count) => {
         document.getElementById('stat-users').textContent = count;
     });
+
+    // Annotation changes refresh the detail panel (if open) and update timeline markers
+    const onAnnotationChange = (eventId) => {
+        refreshDetailIfOpen(eventId);
+        if (state.events.length > 0) {
+            renderTimelineVisualization(state.events, state.hostRegistry, state.connections, state.annotations);
+        }
+    };
+    state.on('annotation:updated', onAnnotationChange);
+    state.on('annotation:deleted', onAnnotationChange);
 }
 
 /**
@@ -124,7 +171,9 @@ function resetStats() {
     document.getElementById('stat-events').textContent = '0';
     document.getElementById('stat-hosts').textContent = '0';
     document.getElementById('stat-connections').textContent = '0';
-    document.getElementById('stat-timespan').textContent = '-';
+    document.getElementById('stat-timespan').textContent = '—';
+    if (statusEventsEl) statusEventsEl.textContent = '0';
+    if (statusHostsEl) statusHostsEl.textContent = '0';
 }
 
 /**
@@ -134,9 +183,10 @@ function updateStats() {
     const events = state.events;
     const hostRegistry = state.hostRegistry;
     const connections = state.connections;
+    const hostCount = hostRegistry.getHostList().length;
 
     document.getElementById('stat-events').textContent = events.length;
-    document.getElementById('stat-hosts').textContent = hostRegistry.getHostList().length;
+    document.getElementById('stat-hosts').textContent = hostCount;
     document.getElementById('stat-connections').textContent = connections.length;
 
     const timestamps = events.map(e => e.timestamp).sort((a, b) => a - b);
@@ -144,8 +194,11 @@ function updateStats() {
         const duration = timestamps[timestamps.length - 1] - timestamps[0];
         document.getElementById('stat-timespan').textContent = formatDuration(duration);
     } else {
-        document.getElementById('stat-timespan').textContent = '-';
+        document.getElementById('stat-timespan').textContent = '—';
     }
+
+    if (statusEventsEl) statusEventsEl.textContent = events.length;
+    if (statusHostsEl) statusHostsEl.textContent = hostCount;
 }
 
 /**
@@ -281,27 +334,6 @@ function parseAndRender() {
 }
 
 /**
- * Attaches change listeners to category filter checkboxes.
- */
-function setupFilters() {
-    const updateFilters = () => {
-        setEventCategoryFilters({
-            network: filterNetwork.checked,
-            file: filterFile.checked,
-            process: filterProcess.checked,
-            authentication: filterAuth.checked,
-            other: filterOther.checked
-        });
-    };
-
-    filterNetwork.addEventListener('change', updateFilters);
-    filterFile.addEventListener('change', updateFilters);
-    filterProcess.addEventListener('change', updateFilters);
-    filterAuth.addEventListener('change', updateFilters);
-    filterOther.addEventListener('change', updateFilters);
-}
-
-/**
  * Attaches click handlers to zoom in, out, and reset buttons.
  */
 function setupZoomControls() {
@@ -327,8 +359,12 @@ function setupDetailPanel() {
  * Attaches click handler to sidebar collapse/expand toggle.
  */
 function setupSidebar() {
+    const timelineContainer = document.getElementById('timeline-container');
+    const appContainer = document.querySelector('.app-container');
     sidebarToggle.addEventListener('click', () => {
-        sidebar.classList.toggle('collapsed');
+        const collapsed = sidebar.classList.toggle('collapsed');
+        if (timelineContainer) timelineContainer.classList.toggle('sidebar-collapsed', collapsed);
+        if (appContainer) appContainer.classList.toggle('sidebar-collapsed', collapsed);
     });
 }
 
@@ -338,9 +374,12 @@ function setupSidebar() {
  * @param {Object} event - The parsed event object to display
  */
 function showEventDetail(event) {
-    detailContent.innerHTML = renderEventDetailPanel(event);
+    currentDetailEvent = event;
+    const annotation = state.annotations.get(event.id) || null;
+    detailContent.innerHTML = renderEventDetailPanel(event, annotation);
     eventDetail.hidden = false;
 
+    // Delete event button
     const deleteBtn = document.getElementById('delete-event-btn');
     if (deleteBtn) {
         deleteBtn.addEventListener('click', () => {
@@ -351,6 +390,50 @@ function showEventDetail(event) {
                 } else {
                     state.deleteEvent(eventId);
                 }
+            }
+        });
+    }
+
+    // Tactic dropdown changes technique options
+    const tacticSelect = document.getElementById('annotation-tactic');
+    const techniqueSelect = document.getElementById('annotation-technique');
+    if (tacticSelect && techniqueSelect) {
+        tacticSelect.addEventListener('change', () => {
+            const techniqueList = TECHNIQUES[tacticSelect.value] || null;
+            techniqueSelect.innerHTML = renderMitreOptions(techniqueList, '', '-- Select Technique --');
+        });
+    }
+
+    // Save annotation button
+    const saveAnnotationBtn = document.getElementById('save-annotation-btn');
+    if (saveAnnotationBtn) {
+        saveAnnotationBtn.addEventListener('click', () => {
+            const comment = document.getElementById('annotation-comment').value;
+            const mitreTactic = document.getElementById('annotation-tactic').value;
+            const mitreTechnique = document.getElementById('annotation-technique').value;
+
+            const annotationData = { comment, mitreTactic, mitreTechnique };
+
+            if (isConnected()) {
+                sendAnnotationToServer(event.id, annotationData);
+            } else {
+                state.setAnnotation(event.id, {
+                    eventId: event.id,
+                    ...annotationData,
+                    updatedAt: Date.now()
+                });
+            }
+        });
+    }
+
+    // Delete annotation button
+    const deleteAnnotationBtn = document.getElementById('delete-annotation-btn');
+    if (deleteAnnotationBtn) {
+        deleteAnnotationBtn.addEventListener('click', () => {
+            if (isConnected()) {
+                sendDeleteAnnotationToServer(event.id);
+            } else {
+                state.deleteAnnotation(event.id);
             }
         });
     }
@@ -380,8 +463,12 @@ function exportTimeline() {
         return;
     }
 
-    const rawEvents = state.events.map(e => e.raw);
-    const jsonString = JSON.stringify(rawEvents, null, 2);
+    const exportData = {
+        exportedAt: new Date().toISOString(),
+        events: state.events.map(e => e.raw),
+        annotations: Object.fromEntries(state.annotations)
+    };
+    const jsonString = JSON.stringify(exportData, null, 2);
     const blob = new Blob([jsonString], {type: 'application/json'});
     const url = URL.createObjectURL(blob);
 

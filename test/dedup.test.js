@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert';
-import { getId, deduplicateEvents } from '../js/dedup.js';
+import { getId, deduplicateEvents } from '../shared/dedup.js';
 
 describe('Deduplication', () => {
 
