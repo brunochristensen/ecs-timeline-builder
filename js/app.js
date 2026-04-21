@@ -44,6 +44,7 @@ const statusSyncEl = document.getElementById('status-sync');
 
 // Currently displayed event in the detail panel (for annotation refresh)
 let currentDetailEvent = null;
+let initialTimelineHandled = false;
 
 /**
  * Initializes the application on page load.
@@ -74,8 +75,8 @@ function init() {
  * Auto-joins if URL has timeline param, otherwise shows selector.
  */
 function handleTimelineListReceived() {
-    // Only run once on initial connection
-    if (state.currentTimelineId) return;
+    if (initialTimelineHandled) return;
+    initialTimelineHandled = true;
 
     const urlTimelineId = getTimelineIdFromUrl();
     if (urlTimelineId) {

@@ -147,20 +147,21 @@ export class TimelineManager {
      * Returns the number of timelines saved.
      */
     async saveAll() {
-        let saved = 0;
+        const savePromises = [];
 
         for (const id of this.#dirty) {
             const store = this.#stores.get(id);
             if (store) {
-                await saveTimelineData(id, store.getAll(), store.getAnnotations());
-                saved++;
+                savePromises.push(saveTimelineData(id, store.getAll(), store.getAnnotations()));
             }
         }
 
-        if (saved > 0) {
+        if (savePromises.length > 0) {
+            await Promise.all(savePromises);
             await this.#saveIndex();
         }
 
+        const saved = savePromises.length;
         this.#dirty.clear();
         return saved;
     }

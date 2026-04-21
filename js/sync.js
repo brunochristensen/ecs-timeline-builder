@@ -111,6 +111,7 @@ function handleMessage(message) {
 
         case 'JOINED_TIMELINE':
             console.log(`Joined timeline: ${message.timelineId} (${message.events.length} events)`);
+            state.clearForTimelineSwitch();
             state.setCurrentTimeline(message.timelineId);
             state.setEvents(message.events, message.annotations || {});
             break;
@@ -269,13 +270,12 @@ export function createTimeline(name, description = '') {
 }
 
 /**
- * Joins a specific timeline. Clears local state before joining.
+ * Joins a specific timeline.
  *
  * @param {string} timelineId - ID of the timeline to join
  * @returns {boolean} True if message was sent
  */
 export function joinTimeline(timelineId) {
-    state.clearForTimelineSwitch();
     return send({ type: 'JOIN_TIMELINE', timelineId });
 }
 

@@ -5,6 +5,7 @@
 
 import { state } from './state.js';
 import { joinTimeline, createTimeline, deleteTimeline } from './sync.js';
+import { escapeHtml } from './utils.js';
 
 let selectorElement = null;
 let onTimelineJoined = null;
@@ -231,16 +232,6 @@ function updateUrlWithTimeline(timelineId) {
 export function getTimelineIdFromUrl() {
     const params = new URLSearchParams(window.location.search);
     return params.get('timeline');
-}
-
-/**
- * Escapes HTML special characters.
- */
-function escapeHtml(str) {
-    if (!str) return '';
-    return str.replace(/[&<>"']/g, c => ({
-        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
-    })[c]);
 }
 
 /**

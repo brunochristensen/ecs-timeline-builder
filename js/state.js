@@ -15,6 +15,7 @@ class TimelineState extends EventEmitter {
     #userCount = 0;
     #timelines = [];
     #currentTimelineId = null;
+    #currentTimelineCache = null;
 
     /** @returns {Array} Parsed event objects */
     get events() { return this.#events; }
@@ -34,7 +35,7 @@ class TimelineState extends EventEmitter {
     get currentTimelineId() { return this.#currentTimelineId; }
     /** @returns {Object|null} Currently joined timeline metadata */
     get currentTimeline() {
-        return this.#timelines.find(t => t.id === this.#currentTimelineId) || null;
+        return this.#currentTimelineCache;
     }
 
     /**
@@ -156,12 +157,14 @@ class TimelineState extends EventEmitter {
 
     /**
      * Set the list of available timelines.
-     * Emits `timelines:changed`.
+     * Emits `timelines:changed` only if the list actually changed.
      *
      * @param {Array} timelines - Array of timeline metadata objects
      */
     setTimelines(timelines) {
+        if (JSON.stringify(this.#timelines) === JSON.stringify(timelines)) return;
         this.#timelines = timelines;
+        this.#updateCurrentTimelineCache();
         this.emit('timelines:changed', timelines);
     }
 
@@ -214,7 +217,14 @@ class TimelineState extends EventEmitter {
      */
     setCurrentTimeline(timelineId) {
         this.#currentTimelineId = timelineId;
+        this.#updateCurrentTimelineCache();
         this.emit('timeline:joined', timelineId);
+    }
+
+    #updateCurrentTimelineCache() {
+        this.#currentTimelineCache = this.#currentTimelineId
+            ? this.#timelines.find(t => t.id === this.#currentTimelineId) || null
+            : null;
     }
 
     /**
