@@ -1,7 +1,7 @@
 /**
  * ECS Timeline Builder - Server
  * Transport layer: Express HTTP + WebSocket message routing.
- * Delegates business logic to EventStore and persistence to file I/O module.
+ * Supports multiple concurrent timelines via TimelineManager.
  */
 
 import express from 'express';
@@ -9,8 +9,7 @@ import http from 'http';
 import WebSocket, { WebSocketServer } from 'ws';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { EventStore } from './server/event-store.js';
-import { loadData, saveData } from './server/persistence.js';
+import { TimelineManager } from './server/timeline-manager.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -20,23 +19,33 @@ const wss = new WebSocketServer({ server });
 
 // Config
 const PORT = process.env.PORT || 12345;
-const DATA_FILE = process.env.DATA_FILE || './data/timeline.json';
 const SAVE_INTERVAL = 30000;
 const HEARTBEAT_INTERVAL = 30000;
 const HEARTBEAT_TIMEOUT = 90000;
 
 // State
-const store = new EventStore();
-let isDirty = false;
+const manager = new TimelineManager();
+const rooms = new Map();  // timelineId → Set<WebSocket>
 
 /**
- * Broadcast a message to all connected clients, optionally excluding one (the sender).
- * Serializes the payload once and sends the string to each client.
- *
- * @param {Object} message - Message object to serialize and broadcast
- * @param {WebSocket|null} [excludeWs=null] - Client to skip (typically the sender)
+ * Broadcast a message to all clients in a specific timeline room.
  */
-function broadcast(message, excludeWs = null) {
+function broadcastToRoom(timelineId, message, excludeWs = null) {
+    const room = rooms.get(timelineId);
+    if (!room) return;
+
+    const msgString = JSON.stringify(message);
+    for (const client of room) {
+        if (client !== excludeWs && client.readyState === WebSocket.OPEN) {
+            client.send(msgString);
+        }
+    }
+}
+
+/**
+ * Broadcast a message to ALL connected clients (for timeline list updates).
+ */
+function broadcastToAll(message, excludeWs = null) {
     const msgString = JSON.stringify(message);
     wss.clients.forEach(client => {
         if (client !== excludeWs && client.readyState === WebSocket.OPEN) {
@@ -46,35 +55,63 @@ function broadcast(message, excludeWs = null) {
 }
 
 /**
- * Builds a full-state SYNC message payload from the store.
- *
- * @returns {{ type: string, events: Array, annotations: Object }} SYNC message
+ * Adds a client to a timeline room.
  */
-function buildSyncMessage() {
-    return {
-        type: 'SYNC',
-        events: store.getAll(),
-        annotations: store.getAnnotations()
-    };
+function joinRoom(ws, timelineId) {
+    if (ws.currentTimeline) {
+        leaveRoom(ws, ws.currentTimeline);
+    }
+
+    if (!rooms.has(timelineId)) {
+        rooms.set(timelineId, new Set());
+    }
+    rooms.get(timelineId).add(ws);
+    ws.currentTimeline = timelineId;
+
+    broadcastToRoom(timelineId, {
+        type: 'USER_COUNT',
+        count: rooms.get(timelineId).size
+    });
+}
+
+/**
+ * Removes a client from a timeline room.
+ */
+function leaveRoom(ws, timelineId) {
+    const room = rooms.get(timelineId);
+    if (room) {
+        room.delete(ws);
+        broadcastToRoom(timelineId, {
+            type: 'USER_COUNT',
+            count: room.size
+        });
+        if (room.size === 0) {
+            rooms.delete(timelineId);
+        }
+    }
+    ws.currentTimeline = null;
+}
+
+/**
+ * Gets room user count for a specific timeline.
+ */
+function getRoomUserCount(timelineId) {
+    return rooms.get(timelineId)?.size || 0;
 }
 
 // WebSocket connection handling
 wss.on('connection', (ws) => {
     console.log('Client connected. Total clients:', wss.clients.size);
 
-    // Track last pong for heartbeat
     ws.lastPong = Date.now();
+    ws.currentTimeline = null;
 
-    // Send current state to new client
-    ws.send(JSON.stringify(buildSyncMessage()));
+    ws.send(JSON.stringify({
+        type: 'TIMELINES_LIST',
+        timelines: manager.listTimelines()
+    }));
 
-    // Broadcast user count update
-    broadcast({
-        type: 'USER_COUNT',
-        count: wss.clients.size
-    });
-
-    ws.on('message', (data) => {
+    ws.on('message', async (data) => {
         try {
             const message = JSON.parse(data);
             if (!message.type || typeof message.type !== 'string') {
@@ -83,15 +120,121 @@ wss.on('connection', (ws) => {
             }
 
             switch (message.type) {
+                case 'LIST_TIMELINES': {
+                    ws.send(JSON.stringify({
+                        type: 'TIMELINES_LIST',
+                        timelines: manager.listTimelines()
+                    }));
+                    break;
+                }
+
+                case 'CREATE_TIMELINE': {
+                    const timeline = await manager.createTimeline(
+                        message.name,
+                        message.description || ''
+                    );
+                    broadcastToAll({
+                        type: 'TIMELINE_CREATED',
+                        timeline
+                    });
+                    break;
+                }
+
+                case 'UPDATE_TIMELINE': {
+                    if (!message.timelineId) {
+                        console.warn('UPDATE_TIMELINE: missing timelineId');
+                        break;
+                    }
+                    const updated = await manager.updateTimeline(message.timelineId, {
+                        name: message.name,
+                        description: message.description
+                    });
+                    if (updated) {
+                        broadcastToAll({
+                            type: 'TIMELINE_UPDATED',
+                            timeline: updated
+                        });
+                    }
+                    break;
+                }
+
+                case 'DELETE_TIMELINE': {
+                    if (!message.timelineId) {
+                        console.warn('DELETE_TIMELINE: missing timelineId');
+                        break;
+                    }
+                    const deleted = await manager.deleteTimeline(message.timelineId);
+                    if (deleted) {
+                        const room = rooms.get(message.timelineId);
+                        if (room) {
+                            for (const client of room) {
+                                client.send(JSON.stringify({
+                                    type: 'TIMELINE_DELETED',
+                                    timelineId: message.timelineId
+                                }));
+                                client.currentTimeline = null;
+                            }
+                            rooms.delete(message.timelineId);
+                        }
+                        broadcastToAll({
+                            type: 'TIMELINE_DELETED',
+                            timelineId: message.timelineId
+                        });
+                    }
+                    break;
+                }
+
+                case 'JOIN_TIMELINE': {
+                    if (!message.timelineId) {
+                        console.warn('JOIN_TIMELINE: missing timelineId');
+                        break;
+                    }
+                    const store = await manager.getStore(message.timelineId);
+                    if (!store) {
+                        ws.send(JSON.stringify({
+                            type: 'ERROR',
+                            message: 'Timeline not found'
+                        }));
+                        break;
+                    }
+                    joinRoom(ws, message.timelineId);
+                    ws.send(JSON.stringify({
+                        type: 'JOINED_TIMELINE',
+                        timelineId: message.timelineId,
+                        events: store.getAll(),
+                        annotations: store.getAnnotations()
+                    }));
+                    break;
+                }
+
+                case 'LEAVE_TIMELINE': {
+                    if (ws.currentTimeline) {
+                        const timelineId = ws.currentTimeline;
+                        leaveRoom(ws, timelineId);
+                        ws.send(JSON.stringify({
+                            type: 'LEFT_TIMELINE',
+                            timelineId
+                        }));
+                    }
+                    break;
+                }
+
                 case 'ADD_EVENTS': {
+                    if (!ws.currentTimeline) {
+                        console.warn('ADD_EVENTS: client not in a timeline');
+                        break;
+                    }
                     if (!Array.isArray(message.events)) {
                         console.warn('ADD_EVENTS: missing or invalid events array');
                         break;
                     }
+                    const store = await manager.getStore(ws.currentTimeline);
+                    if (!store) break;
+
                     const result = store.addEvents(message.events);
                     if (result.added.length > 0) {
-                        isDirty = true;
-                        broadcast({
+                        manager.markDirty(ws.currentTimeline);
+                        broadcastToRoom(ws.currentTimeline, {
                             type: 'EVENTS_ADDED',
                             events: result.added
                         }, ws);
@@ -105,37 +248,61 @@ wss.on('connection', (ws) => {
                 }
 
                 case 'DELETE_EVENT': {
+                    if (!ws.currentTimeline) {
+                        console.warn('DELETE_EVENT: client not in a timeline');
+                        break;
+                    }
                     if (!message.eventId || typeof message.eventId !== 'string') {
                         console.warn('DELETE_EVENT: missing or invalid eventId');
                         break;
                     }
+                    const store = await manager.getStore(ws.currentTimeline);
+                    if (!store) break;
+
                     const removed = store.deleteEvent(message.eventId);
                     if (removed) {
-                        isDirty = true;
-                        broadcast({ type: 'EVENT_DELETED', eventId: message.eventId });
+                        manager.markDirty(ws.currentTimeline);
+                        broadcastToRoom(ws.currentTimeline, {
+                            type: 'EVENT_DELETED',
+                            eventId: message.eventId
+                        });
                     }
                     break;
                 }
 
                 case 'CLEAR': {
+                    if (!ws.currentTimeline) {
+                        console.warn('CLEAR: client not in a timeline');
+                        break;
+                    }
+                    const store = await manager.getStore(ws.currentTimeline);
+                    if (!store) break;
+
                     store.clear();
-                    isDirty = true;
-                    broadcast({ type: 'CLEARED' });
+                    manager.markDirty(ws.currentTimeline);
+                    broadcastToRoom(ws.currentTimeline, { type: 'CLEARED' });
                     break;
                 }
 
                 case 'ANNOTATE_EVENT': {
+                    if (!ws.currentTimeline) {
+                        console.warn('ANNOTATE_EVENT: client not in a timeline');
+                        break;
+                    }
                     if (!message.eventId || typeof message.eventId !== 'string') {
                         console.warn('ANNOTATE_EVENT: missing or invalid eventId');
                         break;
                     }
+                    const store = await manager.getStore(ws.currentTimeline);
+                    if (!store) break;
+
                     const annotation = store.setAnnotation(message.eventId, {
                         comment: message.comment,
                         mitreTactic: message.mitreTactic,
                         mitreTechnique: message.mitreTechnique
                     });
-                    isDirty = true;
-                    broadcast({
+                    manager.markDirty(ws.currentTimeline);
+                    broadcastToRoom(ws.currentTimeline, {
                         type: 'ANNOTATION_UPDATED',
                         eventId: message.eventId,
                         annotation
@@ -144,13 +311,20 @@ wss.on('connection', (ws) => {
                 }
 
                 case 'DELETE_ANNOTATION': {
+                    if (!ws.currentTimeline) {
+                        console.warn('DELETE_ANNOTATION: client not in a timeline');
+                        break;
+                    }
                     if (!message.eventId || typeof message.eventId !== 'string') {
                         console.warn('DELETE_ANNOTATION: missing or invalid eventId');
                         break;
                     }
+                    const store = await manager.getStore(ws.currentTimeline);
+                    if (!store) break;
+
                     if (store.deleteAnnotation(message.eventId)) {
-                        isDirty = true;
-                        broadcast({
+                        manager.markDirty(ws.currentTimeline);
+                        broadcastToRoom(ws.currentTimeline, {
                             type: 'ANNOTATION_DELETED',
                             eventId: message.eventId
                         });
@@ -159,7 +333,20 @@ wss.on('connection', (ws) => {
                 }
 
                 case 'REQUEST_SYNC': {
-                    ws.send(JSON.stringify(buildSyncMessage()));
+                    if (!ws.currentTimeline) {
+                        ws.send(JSON.stringify({
+                            type: 'SYNC',
+                            events: [],
+                            annotations: {}
+                        }));
+                        break;
+                    }
+                    const store = await manager.getStore(ws.currentTimeline);
+                    ws.send(JSON.stringify({
+                        type: 'SYNC',
+                        events: store ? store.getAll() : [],
+                        annotations: store ? store.getAnnotations() : {}
+                    }));
                     break;
                 }
 
@@ -178,10 +365,9 @@ wss.on('connection', (ws) => {
 
     ws.on('close', () => {
         console.log('Client disconnected. Total clients:', wss.clients.size);
-        broadcast({
-            type: 'USER_COUNT',
-            count: wss.clients.size
-        });
+        if (ws.currentTimeline) {
+            leaveRoom(ws, ws.currentTimeline);
+        }
     });
 
     ws.on('error', (error) => {
@@ -195,12 +381,16 @@ app.use(express.static(path.join(__dirname)));
 // Health check endpoint
 app.get('/health', (req, res) => {
     const mem = process.memoryUsage();
+    const timelines = manager.listTimelines();
+    const loadedStores = manager.getLoadedStoreIds();
+
     res.json({
         status: 'ok',
         uptime: Math.floor(process.uptime()),
         clients: wss.clients.size,
-        events: store.length,
-        annotations: Object.keys(store.getAnnotations()).length,
+        timelines: timelines.length,
+        loadedStores: loadedStores.length,
+        rooms: rooms.size,
         memory: {
             heapUsedMB: Math.round(mem.heapUsed / 1024 / 1024),
             heapTotalMB: Math.round(mem.heapTotal / 1024 / 1024)
@@ -208,20 +398,34 @@ app.get('/health', (req, res) => {
     });
 });
 
-// API endpoint to get current state
-app.get('/api/events', (req, res) => {
+// API endpoint to list timelines
+app.get('/api/timelines', (req, res) => {
+    res.json(manager.listTimelines());
+});
+
+// API endpoint to get events for a specific timeline
+app.get('/api/timelines/:id/events', async (req, res) => {
+    const store = await manager.getStore(req.params.id);
+    if (!store) {
+        res.status(404).json({ error: 'Timeline not found' });
+        return;
+    }
     res.json(store.getAll());
 });
 
-// Load data on startup
-const loaded = await loadData(DATA_FILE);
-store.load(loaded.events, loaded.annotations);
+// Initialize and start
+await manager.initialize();
+
+// Create default timeline if none exist
+if (manager.listTimelines().length === 0) {
+    await manager.createTimeline('Default Timeline', 'Auto-created on first run');
+}
 
 // Auto-save interval
-setInterval(() => {
-    if (isDirty) {
-        isDirty = false;
-        saveData(DATA_FILE, store.getAll(), store.getAnnotations());
+setInterval(async () => {
+    const saved = await manager.saveAll();
+    if (saved > 0) {
+        console.log(`Auto-saved ${saved} timeline(s)`);
     }
 }, SAVE_INTERVAL);
 
@@ -233,6 +437,9 @@ setInterval(() => {
 
         if (now - client.lastPong > HEARTBEAT_TIMEOUT) {
             console.log('Terminating stale client (no pong received)');
+            if (client.currentTimeline) {
+                leaveRoom(client, client.currentTimeline);
+            }
             client.terminate();
             return;
         }
@@ -244,9 +451,7 @@ setInterval(() => {
 // Save on shutdown
 async function shutdown() {
     console.log('\nShutting down...');
-    if (isDirty) {
-        await saveData(DATA_FILE, store.getAll(), store.getAnnotations());
-    }
+    await manager.saveAll();
     process.exit(0);
 }
 
@@ -256,5 +461,5 @@ process.on('SIGTERM', shutdown);
 // Start server
 server.listen(PORT, '0.0.0.0', () => {
     console.log(`ECS Timeline Builder server running on http://localhost:${PORT}`);
-    console.log(`Data file: ${path.resolve(DATA_FILE)}`);
+    console.log(`Timelines: ${manager.listTimelines().length}`);
 });
