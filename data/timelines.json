@@ -1,0 +1,11 @@
+{
+  "timelines": [
+    {
+      "id": "default",
+      "name": "Default Timeline",
+      "description": "Migrated from legacy timeline.json",
+      "createdAt": "2026-04-21T20:25:04.848Z",
+      "updatedAt": "2026-04-21T20:25:04.849Z"
+    }
+  ]
+}
