@@ -89,6 +89,37 @@ function attemptReconnect() {
  */
 function handleMessage(message) {
     switch (message.type) {
+        case 'TIMELINES_LIST':
+            console.log(`Received ${message.timelines.length} timeline(s)`);
+            state.setTimelines(message.timelines);
+            break;
+
+        case 'TIMELINE_CREATED':
+            console.log(`Timeline created: ${message.timeline.name}`);
+            state.addTimeline(message.timeline);
+            break;
+
+        case 'TIMELINE_UPDATED':
+            console.log(`Timeline updated: ${message.timeline.name}`);
+            state.updateTimelineMeta(message.timeline.id, message.timeline);
+            break;
+
+        case 'TIMELINE_DELETED':
+            console.log(`Timeline deleted: ${message.timelineId}`);
+            state.removeTimeline(message.timelineId);
+            break;
+
+        case 'JOINED_TIMELINE':
+            console.log(`Joined timeline: ${message.timelineId} (${message.events.length} events)`);
+            state.setCurrentTimeline(message.timelineId);
+            state.setEvents(message.events, message.annotations || {});
+            break;
+
+        case 'LEFT_TIMELINE':
+            console.log(`Left timeline: ${message.timelineId}`);
+            state.clearForTimelineSwitch();
+            break;
+
         case 'SYNC':
             console.log(`Received sync: ${message.events.length} events`);
             state.setEvents(message.events, message.annotations || {});
@@ -127,6 +158,10 @@ function handleMessage(message) {
 
         case 'PING':
             send({ type: 'PONG' });
+            break;
+
+        case 'ERROR':
+            console.error('Server error:', message.message);
             break;
 
         default:
@@ -211,4 +246,65 @@ export function sendDeleteAnnotationToServer(eventId) {
  */
 export function isConnected() {
     return connectionActive;
+}
+
+/**
+ * Requests the server to send the list of available timelines.
+ *
+ * @returns {boolean} True if message was sent
+ */
+export function requestTimelineList() {
+    return send({ type: 'LIST_TIMELINES' });
+}
+
+/**
+ * Creates a new timeline on the server.
+ *
+ * @param {string} name - Timeline name
+ * @param {string} [description=''] - Optional description
+ * @returns {boolean} True if message was sent
+ */
+export function createTimeline(name, description = '') {
+    return send({ type: 'CREATE_TIMELINE', name, description });
+}
+
+/**
+ * Joins a specific timeline. Clears local state before joining.
+ *
+ * @param {string} timelineId - ID of the timeline to join
+ * @returns {boolean} True if message was sent
+ */
+export function joinTimeline(timelineId) {
+    state.clearForTimelineSwitch();
+    return send({ type: 'JOIN_TIMELINE', timelineId });
+}
+
+/**
+ * Leaves the current timeline.
+ *
+ * @returns {boolean} True if message was sent
+ */
+export function leaveTimeline() {
+    return send({ type: 'LEAVE_TIMELINE' });
+}
+
+/**
+ * Deletes a timeline from the server.
+ *
+ * @param {string} timelineId - ID of the timeline to delete
+ * @returns {boolean} True if message was sent
+ */
+export function deleteTimeline(timelineId) {
+    return send({ type: 'DELETE_TIMELINE', timelineId });
+}
+
+/**
+ * Updates a timeline's metadata.
+ *
+ * @param {string} timelineId - ID of the timeline to update
+ * @param {Object} updates - { name?, description? }
+ * @returns {boolean} True if message was sent
+ */
+export function updateTimeline(timelineId, updates) {
+    return send({ type: 'UPDATE_TIMELINE', timelineId, ...updates });
 }

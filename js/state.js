@@ -4,7 +4,7 @@ import { deduplicateEvents } from '../shared/dedup.js';
 
 /**
  * Centralized timeline state store. Single source of truth for events, annotations,
- * and connection status. Modules subscribe via inherited EventEmitter methods.
+ * timeline metadata, and connection status. Modules subscribe via inherited EventEmitter methods.
  */
 class TimelineState extends EventEmitter {
     #events = [];
@@ -13,6 +13,8 @@ class TimelineState extends EventEmitter {
     #annotations = new Map();
     #connected = false;
     #userCount = 0;
+    #timelines = [];
+    #currentTimelineId = null;
 
     /** @returns {Array} Parsed event objects */
     get events() { return this.#events; }
@@ -26,6 +28,14 @@ class TimelineState extends EventEmitter {
     get connected() { return this.#connected; }
     /** @returns {number} Connected user count from server */
     get userCount() { return this.#userCount; }
+    /** @returns {Array} Available timelines */
+    get timelines() { return this.#timelines; }
+    /** @returns {string|null} Currently joined timeline ID */
+    get currentTimelineId() { return this.#currentTimelineId; }
+    /** @returns {Object|null} Currently joined timeline metadata */
+    get currentTimeline() {
+        return this.#timelines.find(t => t.id === this.#currentTimelineId) || null;
+    }
 
     /**
      * Parse raw input, deduplicate against existing events, and add new ones.
@@ -142,6 +152,80 @@ class TimelineState extends EventEmitter {
         if (this.#userCount === count) return;
         this.#userCount = count;
         this.emit('usercount:changed', count);
+    }
+
+    /**
+     * Set the list of available timelines.
+     * Emits `timelines:changed`.
+     *
+     * @param {Array} timelines - Array of timeline metadata objects
+     */
+    setTimelines(timelines) {
+        this.#timelines = timelines;
+        this.emit('timelines:changed', timelines);
+    }
+
+    /**
+     * Add a new timeline to the list.
+     * Emits `timeline:created`.
+     *
+     * @param {Object} timeline - Timeline metadata
+     */
+    addTimeline(timeline) {
+        this.#timelines.push(timeline);
+        this.emit('timeline:created', timeline);
+    }
+
+    /**
+     * Update a timeline's metadata in the list.
+     * Emits `timeline:updated`.
+     *
+     * @param {string} id - Timeline ID
+     * @param {Object} updates - Updated timeline metadata
+     */
+    updateTimelineMeta(id, updates) {
+        const index = this.#timelines.findIndex(t => t.id === id);
+        if (index === -1) return;
+        this.#timelines[index] = { ...this.#timelines[index], ...updates };
+        this.emit('timeline:updated', this.#timelines[index]);
+    }
+
+    /**
+     * Remove a timeline from the list.
+     * Emits `timeline:deleted`.
+     *
+     * @param {string} id - Timeline ID to remove
+     */
+    removeTimeline(id) {
+        const index = this.#timelines.findIndex(t => t.id === id);
+        if (index === -1) return;
+        this.#timelines.splice(index, 1);
+        if (this.#currentTimelineId === id) {
+            this.#currentTimelineId = null;
+        }
+        this.emit('timeline:deleted', id);
+    }
+
+    /**
+     * Set the currently joined timeline.
+     * Emits `timeline:joined`.
+     *
+     * @param {string} timelineId - Timeline ID
+     */
+    setCurrentTimeline(timelineId) {
+        this.#currentTimelineId = timelineId;
+        this.emit('timeline:joined', timelineId);
+    }
+
+    /**
+     * Clear local state when switching timelines (before receiving new data).
+     * Does NOT emit events:cleared to avoid triggering UI updates meant for user-initiated clears.
+     */
+    clearForTimelineSwitch() {
+        this.#events = [];
+        this.#hostRegistry = null;
+        this.#connections = [];
+        this.#annotations = new Map();
     }
 
     /** Rebuild host registry and connections from the current event list. */

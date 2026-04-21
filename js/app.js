@@ -8,10 +8,11 @@ import {
 } from "./timeline.js";
 import { formatDuration } from "./utils.js";
 import { renderEventDetailPanel, renderMitreOptions } from "./detail-renderer.js";
-import { initWebSocketSync, isConnected, sendEventsToServer, sendDeleteToServer, sendClearToServer, sendAnnotationToServer, sendDeleteAnnotationToServer } from "./sync.js";
+import { initWebSocketSync, isConnected, sendEventsToServer, sendDeleteToServer, sendClearToServer, sendAnnotationToServer, sendDeleteAnnotationToServer, joinTimeline } from "./sync.js";
 import { state } from "./state.js";
 import { TECHNIQUES } from "./mitre.js";
 import { initGapDetection } from "./gap-detection.js";
+import { initTimelineSelector, showSelector, getTimelineIdFromUrl } from "./timeline-selector.js";
 
 // DOM Elements
 const dropZone = document.getElementById('drop-zone');
@@ -57,23 +58,72 @@ function init() {
     setupDetailPanel();
     setupSidebar();
     setupHeaderControls();
-    initCaseId();
+    setupTimelineSwitch();
     subscribeToState();
     initGapDetection();
 
+    initTimelineSelector(onTimelineJoined);
     initWebSocketSync();
+
+    // After WebSocket connects and we receive timeline list, handle auto-join or show selector
+    state.on('timelines:changed', handleTimelineListReceived);
 }
 
 /**
- * Generates a session-scoped case identifier for the status bar.
- * Format: CASE-YYYY-NNNN where NNNN is the current day-of-year.
+ * Handles the initial timeline list received from server.
+ * Auto-joins if URL has timeline param, otherwise shows selector.
  */
-function initCaseId() {
-    const now = new Date();
-    const start = new Date(now.getFullYear(), 0, 0);
-    const dayOfYear = Math.floor((now - start) / 86400000);
-    const padded = String(dayOfYear).padStart(4, '0');
-    if (statusCase) statusCase.textContent = `CASE-${now.getFullYear()}-${padded}`;
+function handleTimelineListReceived() {
+    // Only run once on initial connection
+    if (state.currentTimelineId) return;
+
+    const urlTimelineId = getTimelineIdFromUrl();
+    if (urlTimelineId) {
+        const exists = state.timelines.some(t => t.id === urlTimelineId);
+        if (exists) {
+            joinTimeline(urlTimelineId);
+            return;
+        }
+    }
+
+    // No URL param or timeline not found, show selector
+    showSelector();
+}
+
+/**
+ * Called when a timeline is successfully joined.
+ */
+function onTimelineJoined() {
+    updateTimelineDisplay();
+}
+
+/**
+ * Updates the status bar with the current timeline name.
+ */
+function updateTimelineDisplay() {
+    const timeline = state.currentTimeline;
+    if (statusCase) {
+        if (timeline) {
+            statusCase.textContent = timeline.name;
+            statusCase.title = `${timeline.description || timeline.name} (click to switch)`;
+            statusCase.style.cursor = 'pointer';
+        } else {
+            statusCase.textContent = 'No Timeline';
+            statusCase.title = 'Click to select a timeline';
+            statusCase.style.cursor = 'pointer';
+        }
+    }
+}
+
+/**
+ * Sets up the timeline switch handler on the status bar.
+ */
+function setupTimelineSwitch() {
+    if (statusCase) {
+        statusCase.addEventListener('click', () => {
+            showSelector();
+        });
+    }
 }
 
 /**
@@ -162,6 +212,14 @@ function subscribeToState() {
     };
     state.on('annotation:updated', onAnnotationChange);
     state.on('annotation:deleted', onAnnotationChange);
+
+    // Timeline changes
+    state.on('timeline:joined', updateTimelineDisplay);
+    state.on('timeline:deleted', (deletedId) => {
+        if (state.currentTimelineId === deletedId || !state.currentTimelineId) {
+            showSelector();
+        }
+    });
 }
 
 /**
