@@ -1,11 +1,11 @@
 {
   "timelines": [
     {
-      "id": "default",
-      "name": "Default Timeline",
-      "description": "Migrated from legacy timeline.json",
-      "createdAt": "2026-04-21T20:25:04.848Z",
-      "updatedAt": "2026-04-21T20:25:04.849Z"
+      "id": "demo-incident",
+      "name": "APT29 Simulation - Demo",
+      "description": "Sample incident: phishing to domain compromise",
+      "createdAt": "2026-04-21T14:00:00.000Z",
+      "updatedAt": "2026-04-21T14:30:00.000Z"
     }
   ]
 }
