@@ -1,7 +1,6 @@
 /**
  * ECS Timeline Builder - Persistence Layer
  * File I/O for timeline index and per-timeline data files.
- * Handles migration from legacy single-file format.
  */
 
 import fs from 'fs/promises';
@@ -9,7 +8,6 @@ import path from 'path';
 
 const DATA_DIR = process.env.DATA_DIR || './data';
 const INDEX_FILE = 'timelines.json';
-const LEGACY_FILE = 'timeline.json';
 
 /**
  * Ensures the data directory exists.
@@ -33,70 +31,10 @@ function getTimelinePath(id) {
 }
 
 /**
- * Returns the path to the legacy single-timeline file.
- */
-function getLegacyPath() {
-    return path.join(DATA_DIR, LEGACY_FILE);
-}
-
-/**
  * Generates a short random ID for new timelines.
  */
 export function generateTimelineId() {
     return Math.random().toString(36).substring(2, 10);
-}
-
-/**
- * Checks if legacy timeline.json exists and needs migration.
- * If so, creates the index and renames the legacy file.
- *
- * @returns {Promise<boolean>} True if migration was performed
- */
-export async function migrateIfNeeded() {
-    await ensureDataDir();
-
-    const indexPath = getIndexPath();
-    const legacyPath = getLegacyPath();
-
-    try {
-        await fs.access(indexPath);
-        return false;
-    } catch {
-        // Index doesn't exist, check for legacy file
-    }
-
-    let hasLegacyData = false;
-    let legacyEventCount = 0;
-
-    try {
-        const raw = await fs.readFile(legacyPath, 'utf8');
-        const data = JSON.parse(raw);
-        legacyEventCount = data.events?.length || 0;
-        hasLegacyData = legacyEventCount > 0 || Object.keys(data.annotations || {}).length > 0;
-    } catch {
-        // No legacy file or empty/invalid
-    }
-
-    if (hasLegacyData) {
-        const defaultTimeline = {
-            id: 'default',
-            name: 'Default Timeline',
-            description: 'Migrated from legacy timeline.json',
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString()
-        };
-
-        await fs.rename(legacyPath, getTimelinePath('default'));
-        await saveTimelineIndex({ timelines: [defaultTimeline] });
-
-        console.log(`Migrated legacy timeline.json (${legacyEventCount} events) to multi-timeline format`);
-        return true;
-    }
-
-    // No legacy data, create empty index
-    await saveTimelineIndex({ timelines: [] });
-    console.log('Initialized empty timeline index');
-    return false;
 }
 
 /**
@@ -195,38 +133,6 @@ export async function deleteTimelineData(id) {
             return true;
         }
         console.error(`Error deleting timeline "${id}":`, error.message);
-        return false;
-    }
-}
-
-// Legacy exports for backwards compatibility during transition
-export async function loadData(filePath) {
-    try {
-        const raw = await fs.readFile(filePath, 'utf8');
-        const data = JSON.parse(raw);
-        const events = data.events || [];
-        const annotations = data.annotations || {};
-        console.log(`Loaded ${events.length} events, ${Object.keys(annotations).length} annotations from ${filePath}`);
-        return { events, annotations };
-    } catch (error) {
-        if (error.code === 'ENOENT') {
-            console.log('No existing data file, starting fresh');
-        } else {
-            console.error('Error loading data:', error.message);
-        }
-        return { events: [], annotations: {} };
-    }
-}
-
-export async function saveData(filePath, events, annotations) {
-    try {
-        await fs.mkdir(path.dirname(filePath), { recursive: true });
-        const data = { events, annotations };
-        await fs.writeFile(filePath, JSON.stringify(data));
-        console.log(`Saved ${events.length} events, ${Object.keys(annotations).length} annotations to ${filePath}`);
-        return true;
-    } catch (error) {
-        console.error('Error saving data:', error.message);
         return false;
     }
 }

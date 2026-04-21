@@ -6,7 +6,6 @@
 
 import { EventStore } from './event-store.js';
 import {
-    migrateIfNeeded,
     loadTimelineIndex,
     saveTimelineIndex,
     loadTimelineData,
@@ -21,10 +20,9 @@ export class TimelineManager {
     #dirty = new Set();          // timeline IDs with unsaved changes
 
     /**
-     * Initializes the manager: runs migration if needed, loads index.
+     * Initializes the manager: loads timeline index from disk.
      */
     async initialize() {
-        await migrateIfNeeded();
         const index = await loadTimelineIndex();
 
         for (const timeline of index.timelines) {

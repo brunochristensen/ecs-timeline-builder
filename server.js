@@ -92,13 +92,6 @@ function leaveRoom(ws, timelineId) {
     ws.currentTimeline = null;
 }
 
-/**
- * Gets room user count for a specific timeline.
- */
-function getRoomUserCount(timelineId) {
-    return rooms.get(timelineId)?.size || 0;
-}
-
 // WebSocket connection handling
 wss.on('connection', (ws) => {
     console.log('Client connected. Total clients:', wss.clients.size);
@@ -415,11 +408,6 @@ app.get('/api/timelines/:id/events', async (req, res) => {
 
 // Initialize and start
 await manager.initialize();
-
-// Create default timeline if none exist
-if (manager.listTimelines().length === 0) {
-    await manager.createTimeline('Default Timeline', 'Auto-created on first run');
-}
 
 // Auto-save interval
 setInterval(async () => {
