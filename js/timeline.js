@@ -375,7 +375,7 @@ function renderEvents(events, xScale, yScale, hostRegistry, annotations) {
 
     const isAnnotated = d => annotations && annotations.has(d.id);
     const dotClass  = d => isAnnotated(d) ? `event-dot ${d.category} annotated` : `event-dot ${d.category}`;
-    const dotRadius = d => isAnnotated(d) ? 5 : 3.5;
+    const dotRadius = d => isAnnotated(d) ? 6 : 4.5;
 
     // Enter
     dots.enter()

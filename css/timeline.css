@@ -992,7 +992,7 @@ body {
 /* Connection arcs */
 .connection-line {
     stroke: var(--conn-idle);
-    stroke-width: 1px;
+    stroke-width: 1.5px;
     stroke-dasharray: 3 3;
     fill: none;
     pointer-events: stroke;
@@ -1002,7 +1002,7 @@ body {
 
 .connection-line:hover {
     stroke: var(--conn-hover);
-    stroke-width: 1.5px;
+    stroke-width: 2px;
     stroke-dasharray: none;
 }
 
