@@ -3,29 +3,24 @@
  * Modal UI for listing, creating, and joining timelines.
  */
 
+import bus from './event-bus.js';
 import { state } from './state.js';
 import { joinTimeline, createTimeline, deleteTimeline } from './sync.js';
 import { escapeHtml } from './utils.js';
 
 let selectorElement = null;
-let onTimelineJoined = null;
 
 /**
- * Initializes the timeline selector. Creates the DOM element and subscribes to state.
- *
- * @param {Function} onJoined - Callback when a timeline is successfully joined
+ * Initializes the timeline selector. Creates the DOM element and subscribes to bus events.
+ * Called automatically on module load (self-wiring).
  */
-export function initTimelineSelector(onJoined) {
-    onTimelineJoined = onJoined;
+function init() {
     createSelectorElement();
 
-    state.on('timelines:changed', renderTimelineList);
-    state.on('timeline:created', renderTimelineList);
-    state.on('timeline:deleted', renderTimelineList);
-    state.on('timeline:joined', () => {
-        hideSelector();
-        if (onTimelineJoined) onTimelineJoined();
-    });
+    bus.on('timelines:changed', renderTimelineList);
+    bus.on('timeline:created', renderTimelineList);
+    bus.on('timeline:deleted', renderTimelineList);
+    bus.on('timeline:joined', hideSelector);
 }
 
 /**
@@ -261,3 +256,6 @@ function formatRelative(isoString) {
     if (diffDays < 7) return `${diffDays}d ago`;
     return formatDate(isoString);
 }
+
+// Self-wire on import
+init();

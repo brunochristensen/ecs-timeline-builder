@@ -1,3 +1,4 @@
+import bus from "./event-bus.js";
 import {
     initTimelineVisualization,
     renderTimelineVisualization,
@@ -8,11 +9,11 @@ import {
 } from "./timeline.js";
 import { formatDuration } from "./utils.js";
 import { renderEventDetailPanel, renderMitreOptions } from "./detail-renderer.js";
-import { initWebSocketSync, isConnected, sendEventsToServer, sendDeleteToServer, sendClearToServer, sendAnnotationToServer, sendDeleteAnnotationToServer, joinTimeline } from "./sync.js";
+import { isConnected, sendEventsToServer, sendDeleteToServer, sendClearToServer, sendAnnotationToServer, sendDeleteAnnotationToServer, joinTimeline } from "./sync.js";
 import { state } from "./state.js";
 import { TECHNIQUES } from "./mitre.js";
-import { initGapDetection } from "./gap-detection.js";
-import { initTimelineSelector, showSelector, getTimelineIdFromUrl } from "./timeline-selector.js";
+import "./gap-detection.js";
+import { showSelector, getTimelineIdFromUrl } from "./timeline-selector.js";
 
 // DOM Elements
 const dropZone = document.getElementById('drop-zone');
@@ -61,13 +62,9 @@ function init() {
     setupHeaderControls();
     setupTimelineSwitch();
     subscribeToState();
-    initGapDetection();
-
-    initTimelineSelector(onTimelineJoined);
-    initWebSocketSync();
 
     // After WebSocket connects and we receive timeline list, handle auto-join or show selector
-    state.on('timelines:changed', handleTimelineListReceived);
+    bus.on('timelines:changed', handleTimelineListReceived);
 }
 
 /**
@@ -89,13 +86,6 @@ function handleTimelineListReceived() {
 
     // No URL param or timeline not found, show selector
     showSelector();
-}
-
-/**
- * Called when a timeline is successfully joined.
- */
-function onTimelineJoined() {
-    updateTimelineDisplay();
 }
 
 /**
@@ -173,21 +163,21 @@ function refreshDetailIfOpen(eventId) {
  * Subscribes to state change events and updates UI accordingly.
  */
 function subscribeToState() {
-    state.on('events:added', refreshTimelineUi);
-    state.on('events:synced', refreshTimelineUi);
+    bus.on('events:added', refreshTimelineUi);
+    bus.on('events:synced', refreshTimelineUi);
 
-    state.on('event:deleted', () => {
+    bus.on('event:deleted', () => {
         eventDetail.hidden = true;
         refreshTimelineUi();
     });
 
-    state.on('events:cleared', () => {
+    bus.on('events:cleared', () => {
         jsonInput.value = '';
         eventDetail.hidden = true;
         refreshTimelineUi();
     });
 
-    state.on('connection:changed', (connected) => {
+    bus.on('connection:changed', (connected) => {
         if (statusLed) {
             statusLed.classList.toggle('connected', connected);
             statusLed.classList.toggle('disconnected', !connected);
@@ -200,7 +190,7 @@ function subscribeToState() {
         }
     });
 
-    state.on('usercount:changed', (count) => {
+    bus.on('usercount:changed', (count) => {
         document.getElementById('stat-users').textContent = count;
     });
 
@@ -211,12 +201,12 @@ function subscribeToState() {
             renderTimelineVisualization(state.events, state.hostRegistry, state.connections, state.annotations);
         }
     };
-    state.on('annotation:updated', onAnnotationChange);
-    state.on('annotation:deleted', onAnnotationChange);
+    bus.on('annotation:updated', onAnnotationChange);
+    bus.on('annotation:deleted', onAnnotationChange);
 
     // Timeline changes
-    state.on('timeline:joined', updateTimelineDisplay);
-    state.on('timeline:deleted', (deletedId) => {
+    bus.on('timeline:joined', updateTimelineDisplay);
+    bus.on('timeline:deleted', (deletedId) => {
         if (state.currentTimelineId === deletedId || !state.currentTimelineId) {
             showSelector();
         }

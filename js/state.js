@@ -1,12 +1,12 @@
-import { EventEmitter } from './event-emitter.js';
+import bus from './event-bus.js';
 import { parseEvents, buildHostRegistry, identifyConnections } from './parser.js';
 import { deduplicateEvents } from '../shared/dedup.js';
 
 /**
  * Centralized timeline state store. Single source of truth for events, annotations,
- * timeline metadata, and connection status. Modules subscribe via inherited EventEmitter methods.
+ * timeline metadata, and connection status. Emits state changes to the global event bus.
  */
-class TimelineState extends EventEmitter {
+class TimelineState {
     #events = [];
     #hostRegistry = null;
     #connections = [];
@@ -58,7 +58,7 @@ class TimelineState extends EventEmitter {
 
         this.#events = [...this.#events, ...unique];
         this.#rebuild();
-        this.emit('events:added', unique);
+        bus.emit('events:added', unique);
         return { parsed: parsed.length, added: unique, duplicates: parsed.length - unique.length };
     }
 
@@ -73,7 +73,7 @@ class TimelineState extends EventEmitter {
         this.#events = rawEvents.length > 0 ? parseEvents(rawEvents) : [];
         this.#annotations = new Map(Object.entries(annotations));
         this.#rebuild();
-        this.emit('events:synced');
+        bus.emit('events:synced');
     }
 
     /**
@@ -90,7 +90,7 @@ class TimelineState extends EventEmitter {
         const [removed] = this.#events.splice(index, 1);
         this.#annotations.delete(eventId);
         this.#rebuild();
-        this.emit('event:deleted', eventId);
+        bus.emit('event:deleted', eventId);
         return removed;
     }
 
@@ -102,7 +102,7 @@ class TimelineState extends EventEmitter {
         this.#hostRegistry = null;
         this.#connections = [];
         this.#annotations = new Map();
-        this.emit('events:cleared');
+        bus.emit('events:cleared');
     }
 
     /**
@@ -114,7 +114,7 @@ class TimelineState extends EventEmitter {
      */
     setAnnotation(eventId, annotation) {
         this.#annotations.set(eventId, annotation);
-        this.emit('annotation:updated', eventId, annotation);
+        bus.emit('annotation:updated', eventId, annotation);
     }
 
     /**
@@ -127,7 +127,7 @@ class TimelineState extends EventEmitter {
     deleteAnnotation(eventId) {
         if (!this.#annotations.has(eventId)) return false;
         this.#annotations.delete(eventId);
-        this.emit('annotation:deleted', eventId);
+        bus.emit('annotation:deleted', eventId);
         return true;
     }
 
@@ -140,7 +140,7 @@ class TimelineState extends EventEmitter {
     setConnected(connected) {
         if (this.#connected === connected) return;
         this.#connected = connected;
-        this.emit('connection:changed', connected);
+        bus.emit('connection:changed', connected);
     }
 
     /**
@@ -152,7 +152,7 @@ class TimelineState extends EventEmitter {
     setUserCount(count) {
         if (this.#userCount === count) return;
         this.#userCount = count;
-        this.emit('usercount:changed', count);
+        bus.emit('usercount:changed', count);
     }
 
     /**
@@ -165,7 +165,7 @@ class TimelineState extends EventEmitter {
         if (JSON.stringify(this.#timelines) === JSON.stringify(timelines)) return;
         this.#timelines = timelines;
         this.#updateCurrentTimelineCache();
-        this.emit('timelines:changed', timelines);
+        bus.emit('timelines:changed', timelines);
     }
 
     /**
@@ -176,7 +176,7 @@ class TimelineState extends EventEmitter {
      */
     addTimeline(timeline) {
         this.#timelines.push(timeline);
-        this.emit('timeline:created', timeline);
+        bus.emit('timeline:created', timeline);
     }
 
     /**
@@ -190,7 +190,7 @@ class TimelineState extends EventEmitter {
         const index = this.#timelines.findIndex(t => t.id === id);
         if (index === -1) return;
         this.#timelines[index] = { ...this.#timelines[index], ...updates };
-        this.emit('timeline:updated', this.#timelines[index]);
+        bus.emit('timeline:updated', this.#timelines[index]);
     }
 
     /**
@@ -206,7 +206,7 @@ class TimelineState extends EventEmitter {
         if (this.#currentTimelineId === id) {
             this.#currentTimelineId = null;
         }
-        this.emit('timeline:deleted', id);
+        bus.emit('timeline:deleted', id);
     }
 
     /**
@@ -218,7 +218,7 @@ class TimelineState extends EventEmitter {
     setCurrentTimeline(timelineId) {
         this.#currentTimelineId = timelineId;
         this.#updateCurrentTimelineCache();
-        this.emit('timeline:joined', timelineId);
+        bus.emit('timeline:joined', timelineId);
     }
 
     #updateCurrentTimelineCache() {
@@ -247,6 +247,24 @@ class TimelineState extends EventEmitter {
             this.#hostRegistry = null;
             this.#connections = [];
         }
+    }
+
+    /**
+     * Subscribe to state events via the global bus.
+     * @param {string} event - Event name
+     * @param {Function} listener - Callback
+     */
+    on(event, listener) {
+        bus.on(event, listener);
+    }
+
+    /**
+     * Unsubscribe from state events.
+     * @param {string} event - Event name
+     * @param {Function} listener - Callback to remove
+     */
+    off(event, listener) {
+        bus.off(event, listener);
     }
 }
 

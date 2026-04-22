@@ -14,9 +14,9 @@ let connectionActive = false;
 
 /**
  * Initializes the WebSocket connection for multi-user synchronization.
- * Automatically connects to the server and sets up reconnection logic.
+ * Called automatically on module load (self-wiring).
  */
-export function initWebSocketSync() {
+function init() {
     connect();
 }
 
@@ -308,3 +308,6 @@ export function deleteTimeline(timelineId) {
 export function updateTimeline(timelineId, updates) {
     return send({ type: 'UPDATE_TIMELINE', timelineId, ...updates });
 }
+
+// Self-wire on import
+init();

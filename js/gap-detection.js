@@ -1,3 +1,4 @@
+import bus from './event-bus.js';
 import { state } from './state.js';
 import { TACTICS, getTacticName } from './mitre.js';
 import { escapeHtml } from './utils.js';
@@ -112,14 +113,18 @@ function render() {
 }
 
 /**
- * Initializes the gap detection module by subscribing to state events.
+ * Initializes the gap detection module by subscribing to bus events.
+ * Called automatically on module load (self-wiring).
  */
-export function initGapDetection() {
-    state.on('events:added', invalidateEventsCache);
-    state.on('events:synced', invalidateEventsCache);
-    state.on('event:deleted', invalidateEventsCache);
-    state.on('events:cleared', invalidateEventsCache);
-    state.on('annotation:updated', render);
-    state.on('annotation:deleted', render);
+function init() {
+    bus.on('events:added', invalidateEventsCache);
+    bus.on('events:synced', invalidateEventsCache);
+    bus.on('event:deleted', invalidateEventsCache);
+    bus.on('events:cleared', invalidateEventsCache);
+    bus.on('annotation:updated', render);
+    bus.on('annotation:deleted', render);
     render();
 }
+
+// Self-wire on import
+init();
