@@ -108,7 +108,7 @@ wss.on('connection', (ws) => {
         try {
             const message = JSON.parse(data);
             if (!message.type || typeof message.type !== 'string') {
-                console.warn('Received message with missing or invalid type');
+                ws.send(JSON.stringify({ type: 'ERROR', message: 'Invalid message: missing type' }));
                 return;
             }
 
@@ -135,7 +135,7 @@ wss.on('connection', (ws) => {
 
                 case 'UPDATE_TIMELINE': {
                     if (!message.timelineId) {
-                        console.warn('UPDATE_TIMELINE: missing timelineId');
+                        ws.send(JSON.stringify({ type: 'ERROR', message: 'UPDATE_TIMELINE: missing timelineId' }));
                         break;
                     }
                     const updated = await manager.updateTimeline(message.timelineId, {
@@ -153,7 +153,7 @@ wss.on('connection', (ws) => {
 
                 case 'DELETE_TIMELINE': {
                     if (!message.timelineId) {
-                        console.warn('DELETE_TIMELINE: missing timelineId');
+                        ws.send(JSON.stringify({ type: 'ERROR', message: 'DELETE_TIMELINE: missing timelineId' }));
                         break;
                     }
                     const deleted = await manager.deleteTimeline(message.timelineId);
@@ -179,7 +179,7 @@ wss.on('connection', (ws) => {
 
                 case 'JOIN_TIMELINE': {
                     if (!message.timelineId) {
-                        console.warn('JOIN_TIMELINE: missing timelineId');
+                        ws.send(JSON.stringify({ type: 'ERROR', message: 'JOIN_TIMELINE: missing timelineId' }));
                         break;
                     }
                     const store = await manager.getStore(message.timelineId);
@@ -214,17 +214,22 @@ wss.on('connection', (ws) => {
 
                 case 'ADD_EVENTS': {
                     if (!ws.currentTimeline) {
-                        console.warn('ADD_EVENTS: client not in a timeline');
+                        ws.send(JSON.stringify({ type: 'ERROR', message: 'ADD_EVENTS: not in a timeline' }));
                         break;
                     }
                     if (!Array.isArray(message.events)) {
-                        console.warn('ADD_EVENTS: missing or invalid events array');
+                        ws.send(JSON.stringify({ type: 'ERROR', message: 'ADD_EVENTS: events must be an array' }));
+                        break;
+                    }
+                    const validEvents = message.events.filter(e => e && typeof e === 'object');
+                    if (validEvents.length === 0) {
+                        ws.send(JSON.stringify({ type: 'ERROR', message: 'ADD_EVENTS: no valid event objects' }));
                         break;
                     }
                     const store = await manager.getStore(ws.currentTimeline);
                     if (!store) break;
 
-                    const result = store.addEvents(message.events);
+                    const result = store.addEvents(validEvents);
                     if (result.added.length > 0) {
                         manager.markDirty(ws.currentTimeline);
                         broadcastToRoom(ws.currentTimeline, {
@@ -242,11 +247,11 @@ wss.on('connection', (ws) => {
 
                 case 'DELETE_EVENT': {
                     if (!ws.currentTimeline) {
-                        console.warn('DELETE_EVENT: client not in a timeline');
+                        ws.send(JSON.stringify({ type: 'ERROR', message: 'DELETE_EVENT: not in a timeline' }));
                         break;
                     }
                     if (!message.eventId || typeof message.eventId !== 'string') {
-                        console.warn('DELETE_EVENT: missing or invalid eventId');
+                        ws.send(JSON.stringify({ type: 'ERROR', message: 'DELETE_EVENT: invalid eventId' }));
                         break;
                     }
                     const store = await manager.getStore(ws.currentTimeline);
@@ -265,7 +270,7 @@ wss.on('connection', (ws) => {
 
                 case 'CLEAR': {
                     if (!ws.currentTimeline) {
-                        console.warn('CLEAR: client not in a timeline');
+                        ws.send(JSON.stringify({ type: 'ERROR', message: 'CLEAR: not in a timeline' }));
                         break;
                     }
                     const store = await manager.getStore(ws.currentTimeline);
@@ -279,11 +284,11 @@ wss.on('connection', (ws) => {
 
                 case 'ANNOTATE_EVENT': {
                     if (!ws.currentTimeline) {
-                        console.warn('ANNOTATE_EVENT: client not in a timeline');
+                        ws.send(JSON.stringify({ type: 'ERROR', message: 'ANNOTATE_EVENT: not in a timeline' }));
                         break;
                     }
                     if (!message.eventId || typeof message.eventId !== 'string') {
-                        console.warn('ANNOTATE_EVENT: missing or invalid eventId');
+                        ws.send(JSON.stringify({ type: 'ERROR', message: 'ANNOTATE_EVENT: invalid eventId' }));
                         break;
                     }
                     const store = await manager.getStore(ws.currentTimeline);
@@ -305,11 +310,11 @@ wss.on('connection', (ws) => {
 
                 case 'DELETE_ANNOTATION': {
                     if (!ws.currentTimeline) {
-                        console.warn('DELETE_ANNOTATION: client not in a timeline');
+                        ws.send(JSON.stringify({ type: 'ERROR', message: 'DELETE_ANNOTATION: not in a timeline' }));
                         break;
                     }
                     if (!message.eventId || typeof message.eventId !== 'string') {
-                        console.warn('DELETE_ANNOTATION: missing or invalid eventId');
+                        ws.send(JSON.stringify({ type: 'ERROR', message: 'DELETE_ANNOTATION: invalid eventId' }));
                         break;
                     }
                     const store = await manager.getStore(ws.currentTimeline);
