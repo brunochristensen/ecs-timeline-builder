@@ -9,7 +9,16 @@ import {
 } from "./timeline.js";
 import { formatDuration } from "./utils.js";
 import { renderEventDetailPanel, renderMitreOptions } from "./detail-renderer.js";
-import { isConnected, sendEventsToServer, sendDeleteToServer, sendClearToServer, sendAnnotationToServer, sendDeleteAnnotationToServer, joinTimeline } from "./sync.js";
+import {
+    isConnected,
+    sendEventsToServer,
+    sendDeleteToServer,
+    sendClearToServer,
+    sendAnnotationToServer,
+    sendDeleteAnnotationToServer,
+    joinTimeline,
+    retryConnection
+} from "./sync.js";
 import { state } from "./state.js";
 import { TECHNIQUES } from "./mitre.js";
 import "./gap-detection.js";
@@ -42,6 +51,9 @@ const statusCase = document.getElementById('status-case');
 const statusEventsEl = document.getElementById('status-events');
 const statusHostsEl = document.getElementById('status-hosts');
 const statusSyncEl = document.getElementById('status-sync');
+const statusAlert = document.getElementById('status-alert');
+const statusMessage = document.getElementById('status-message');
+const statusRetryBtn = document.getElementById('status-retry');
 
 // Currently displayed event in the detail panel (for annotation refresh)
 let currentDetailEvent = null;
@@ -61,6 +73,7 @@ function init() {
     setupSidebar();
     setupHeaderControls();
     setupTimelineSwitch();
+    setupStatusActions();
     subscribeToState();
 
     // After WebSocket connects and we receive timeline list, handle auto-join or show selector
@@ -107,6 +120,61 @@ function updateTimelineDisplay() {
 }
 
 /**
+ * Updates status-bar link text and indicator from sync lifecycle state.
+ *
+ * @param {string} [status=state.syncStatus] - Current sync lifecycle state
+ */
+function updateSyncStatus(status = state.syncStatus) {
+    if (statusLed) {
+        statusLed.classList.toggle('connected', status === 'connected');
+        statusLed.classList.toggle('disconnected', status === 'failed' || status === 'disconnected');
+        statusLed.classList.toggle('warning', status === 'reconnecting' || status === 'rejoining');
+    }
+
+    if (!statusLink) return;
+
+    statusLink.classList.remove('warning', 'error');
+
+    if (status === 'connected') {
+        statusLink.textContent = 'ACTIVE';
+        return;
+    }
+
+    if (status === 'rejoining') {
+        statusLink.textContent = 'REJOINING';
+        statusLink.classList.add('warning');
+        return;
+    }
+
+    if (status === 'reconnecting') {
+        statusLink.textContent = 'RECONNECTING';
+        statusLink.classList.add('warning');
+        return;
+    }
+
+    if (status === 'failed') {
+        statusLink.textContent = 'FAILED';
+        statusLink.classList.add('error');
+        return;
+    }
+
+    statusLink.textContent = 'OFFLINE';
+    statusLink.classList.add('error');
+}
+
+/**
+ * Show or hide the visible sync/server error banner.
+ *
+ * @param {string} [message=state.lastError] - Error to surface to the user
+ */
+function updateErrorBanner(message = state.lastError) {
+    if (!statusAlert || !statusMessage) return;
+    const hasMessage = Boolean(message);
+    statusAlert.hidden = !hasMessage;
+    statusMessage.textContent = message || '';
+}
+
+/**
  * Sets up the timeline switch handler on the status bar.
  */
 function setupTimelineSwitch() {
@@ -114,6 +182,12 @@ function setupTimelineSwitch() {
         statusCase.addEventListener('click', () => {
             showSelector();
         });
+    }
+}
+
+function setupStatusActions() {
+    if (statusRetryBtn) {
+        statusRetryBtn.addEventListener('click', () => retryConnection());
     }
 }
 
@@ -194,6 +268,9 @@ function subscribeToState() {
         document.getElementById('stat-users').textContent = count;
     });
 
+    bus.on('syncstatus:changed', updateSyncStatus);
+    bus.on('error:changed', updateErrorBanner);
+
     // Annotation changes refresh the detail panel (if open) and update timeline markers
     const onAnnotationChange = (eventId) => {
         refreshDetailIfOpen(eventId);
@@ -206,11 +283,16 @@ function subscribeToState() {
 
     // Timeline changes
     bus.on('timeline:joined', updateTimelineDisplay);
+    bus.on('timeline:updated', updateTimelineDisplay);
     bus.on('timeline:deleted', (deletedId) => {
         if (state.currentTimelineId === deletedId || !state.currentTimelineId) {
             showSelector();
         }
     });
+
+    updateTimelineDisplay();
+    updateSyncStatus();
+    updateErrorBanner();
 }
 
 /**

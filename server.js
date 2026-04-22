@@ -72,6 +72,8 @@ function joinRoom(ws, timelineId) {
         type: 'USER_COUNT',
         count: rooms.get(timelineId).size
     });
+
+    return rooms.get(timelineId).size;
 }
 
 /**
@@ -190,12 +192,13 @@ wss.on('connection', (ws) => {
                         }));
                         break;
                     }
-                    joinRoom(ws, message.timelineId);
+                    const userCount = joinRoom(ws, message.timelineId);
                     ws.send(JSON.stringify({
                         type: 'JOINED_TIMELINE',
                         timelineId: message.timelineId,
                         events: store.getAll(),
-                        annotations: store.getAnnotations()
+                        annotations: store.getAnnotations(),
+                        userCount
                     }));
                     break;
                 }
@@ -355,9 +358,17 @@ wss.on('connection', (ws) => {
 
                 default:
                     console.warn('Unknown message type:', message.type);
+                    ws.send(JSON.stringify({
+                        type: 'ERROR',
+                        message: `Unknown message type: ${message.type}`
+                    }));
             }
         } catch (error) {
             console.error('Error processing message:', error.message);
+            ws.send(JSON.stringify({
+                type: 'ERROR',
+                message: `Failed to process message: ${error.message}`
+            }));
         }
     });
 

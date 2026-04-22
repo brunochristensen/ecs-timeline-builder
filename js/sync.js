@@ -12,6 +12,10 @@ let ws = null;
 let reconnectAttempts = 0;
 let connectionActive = false;
 
+function buildReconnectErrorMessage() {
+    return `Sync unavailable after ${MAX_RECONNECT_ATTEMPTS} reconnect attempts.`;
+}
+
 /**
  * Initializes the WebSocket connection for multi-user synchronization.
  * Called automatically on module load (self-wiring).
@@ -35,8 +39,17 @@ function connect() {
     ws.onopen = () => {
         console.log('WebSocket connected');
         connectionActive = true;
-        reconnectAttempts = 0;
         state.setConnected(true);
+        state.clearLastError();
+
+        if (state.currentTimelineId) {
+            state.setSyncStatus('rejoining');
+            send({ type: 'JOIN_TIMELINE', timelineId: state.currentTimelineId });
+        } else {
+            state.setSyncStatus('connected');
+        }
+
+        reconnectAttempts = 0;
     };
 
     ws.onmessage = (event) => {
@@ -52,6 +65,7 @@ function connect() {
         console.log('WebSocket disconnected');
         connectionActive = false;
         state.setConnected(false);
+        state.setSyncStatus('reconnecting');
         attemptReconnect();
     };
 
@@ -67,6 +81,8 @@ function connect() {
 function attemptReconnect() {
     if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
         console.error('Max reconnection attempts reached');
+        state.setSyncStatus('failed');
+        state.setLastError(buildReconnectErrorMessage());
         return;
     }
 
@@ -92,6 +108,9 @@ function handleMessage(message) {
         case 'TIMELINES_LIST':
             console.log(`Received ${message.timelines.length} timeline(s)`);
             state.setTimelines(message.timelines);
+            if (!state.currentTimelineId) {
+                state.setSyncStatus('connected');
+            }
             break;
 
         case 'TIMELINE_CREATED':
@@ -114,11 +133,14 @@ function handleMessage(message) {
             state.clearForTimelineSwitch();
             state.setCurrentTimeline(message.timelineId);
             state.setEvents(message.events, message.annotations || {});
+            state.setUserCount(typeof message.userCount === 'number' ? message.userCount : state.userCount);
+            state.setSyncStatus('connected');
             break;
 
         case 'LEFT_TIMELINE':
             console.log(`Left timeline: ${message.timelineId}`);
             state.clearForTimelineSwitch();
+            state.setSyncStatus('connected');
             break;
 
         case 'SYNC':
@@ -163,6 +185,7 @@ function handleMessage(message) {
 
         case 'ERROR':
             console.error('Server error:', message.message);
+            state.setLastError(message.message || 'Server error');
             break;
 
         default:
@@ -276,6 +299,8 @@ export function createTimeline(name, description = '') {
  * @returns {boolean} True if message was sent
  */
 export function joinTimeline(timelineId) {
+    state.clearLastError();
+    state.setSyncStatus('rejoining');
     return send({ type: 'JOIN_TIMELINE', timelineId });
 }
 
@@ -307,6 +332,22 @@ export function deleteTimeline(timelineId) {
  */
 export function updateTimeline(timelineId, updates) {
     return send({ type: 'UPDATE_TIMELINE', timelineId, ...updates });
+}
+
+/**
+ * Retry connection after a terminal reconnect failure.
+ */
+export function retryConnection() {
+    reconnectAttempts = 0;
+    state.clearLastError();
+    state.setSyncStatus('reconnecting');
+
+    if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.close();
+        return;
+    }
+
+    connect();
 }
 
 // Self-wire on import

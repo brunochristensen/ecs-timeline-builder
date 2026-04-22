@@ -2,14 +2,21 @@ import { describe, it, beforeEach } from 'node:test';
 import assert from 'node:assert';
 
 // state.js exports a singleton, so we need to test it carefully.
-// We clear state between tests and track emitted events.
+// We clear state between tests and track emitted events via the bus.
 
 import { state } from '../js/state.js';
+import bus from '../js/event-bus.js';
 
 describe('TimelineState', () => {
 
     beforeEach(() => {
         state.clear();
+        state.setConnected(false);
+        state.setSyncStatus('disconnected');
+        state.clearLastError();
+        state.setTimelines([]);
+        state.setCurrentTimeline(null);
+        state.setUserCount(0);
         // Remove any leftover listeners from previous tests
     });
 
@@ -61,14 +68,14 @@ describe('TimelineState', () => {
         it('should emit events:added when events are added', () => {
             let emitted = false;
             const listener = () => { emitted = true; };
-            state.on('events:added', listener);
+            bus.on('events:added', listener);
 
             state.addEvents([
                 { '@timestamp': '2024-01-15T10:00:00Z', host: { hostname: 'h1' } }
             ]);
 
             assert.strictEqual(emitted, true);
-            state.off('events:added', listener);
+            bus.off('events:added', listener);
         });
 
         it('should not emit events:added when all are duplicates', () => {
@@ -78,14 +85,14 @@ describe('TimelineState', () => {
 
             let emitted = false;
             const listener = () => { emitted = true; };
-            state.on('events:added', listener);
+            bus.on('events:added', listener);
 
             state.addEvents([
                 { '@timestamp': '2024-01-15T10:00:00Z', host: { hostname: 'h1' }, event: { id: 'dup' } }
             ]);
 
             assert.strictEqual(emitted, false);
-            state.off('events:added', listener);
+            bus.off('events:added', listener);
         });
 
         it('should rebuild hostRegistry and connections after adding', () => {
@@ -117,12 +124,12 @@ describe('TimelineState', () => {
         it('should emit events:synced', () => {
             let emitted = false;
             const listener = () => { emitted = true; };
-            state.on('events:synced', listener);
+            bus.on('events:synced', listener);
 
             state.setEvents([]);
 
             assert.strictEqual(emitted, true);
-            state.off('events:synced', listener);
+            bus.off('events:synced', listener);
         });
 
         it('should handle empty array (clear via sync)', () => {
@@ -163,12 +170,12 @@ describe('TimelineState', () => {
 
             let deletedId = null;
             const listener = (id) => { deletedId = id; };
-            state.on('event:deleted', listener);
+            bus.on('event:deleted', listener);
 
             state.deleteEvent('del-me');
 
             assert.strictEqual(deletedId, 'del-me');
-            state.off('event:deleted', listener);
+            bus.off('event:deleted', listener);
         });
 
         it('should return null for nonexistent event id', () => {
@@ -195,12 +202,12 @@ describe('TimelineState', () => {
         it('should emit events:cleared', () => {
             let emitted = false;
             const listener = () => { emitted = true; };
-            state.on('events:cleared', listener);
+            bus.on('events:cleared', listener);
 
             state.clear();
 
             assert.strictEqual(emitted, true);
-            state.off('events:cleared', listener);
+            bus.off('events:cleared', listener);
         });
 
     });
@@ -228,14 +235,14 @@ describe('TimelineState', () => {
             let receivedId = null;
             let receivedAnn = null;
             const listener = (id, ann) => { receivedId = id; receivedAnn = ann; };
-            state.on('annotation:updated', listener);
+            bus.on('annotation:updated', listener);
 
             const annotation = { eventId: 'evt-1', comment: 'hi', mitreTactic: '', mitreTechnique: '', updatedAt: 1 };
             state.setAnnotation('evt-1', annotation);
 
             assert.strictEqual(receivedId, 'evt-1');
             assert.strictEqual(receivedAnn, annotation);
-            state.off('annotation:updated', listener);
+            bus.off('annotation:updated', listener);
         });
 
         it('setAnnotation() should overwrite an existing annotation for the same event', () => {
@@ -262,14 +269,14 @@ describe('TimelineState', () => {
         it('deleteAnnotation() should emit annotation:deleted only when an annotation existed', () => {
             let emittedCount = 0;
             const listener = () => { emittedCount++; };
-            state.on('annotation:deleted', listener);
+            bus.on('annotation:deleted', listener);
 
             state.deleteAnnotation('ghost'); // no-op
             state.setAnnotation('evt-1', { eventId: 'evt-1', comment: 'x', mitreTactic: '', mitreTechnique: '', updatedAt: 1 });
             state.deleteAnnotation('evt-1');
 
             assert.strictEqual(emittedCount, 1);
-            state.off('annotation:deleted', listener);
+            bus.off('annotation:deleted', listener);
         });
 
         it('setEvents() should accept annotations and populate the annotations map', () => {
@@ -305,7 +312,7 @@ describe('TimelineState', () => {
         it('should track connected state', () => {
             let received = null;
             const listener = (val) => { received = val; };
-            state.on('connection:changed', listener);
+            bus.on('connection:changed', listener);
 
             state.setConnected(true);
             assert.strictEqual(state.connected, true);
@@ -315,21 +322,74 @@ describe('TimelineState', () => {
             assert.strictEqual(state.connected, false);
             assert.strictEqual(received, false);
 
-            state.off('connection:changed', listener);
+            bus.off('connection:changed', listener);
         });
 
         it('should track user count', () => {
             let received = null;
             const listener = (val) => { received = val; };
-            state.on('usercount:changed', listener);
+            bus.on('usercount:changed', listener);
 
             state.setUserCount(5);
             assert.strictEqual(state.userCount, 5);
             assert.strictEqual(received, 5);
 
-            state.off('usercount:changed', listener);
+            bus.off('usercount:changed', listener);
         });
 
+    });
+
+    describe('sync lifecycle', () => {
+
+        it('should track sync status and emit syncstatus:changed', () => {
+            let received = null;
+            const listener = (val) => { received = val; };
+            bus.on('syncstatus:changed', listener);
+
+            state.setSyncStatus('reconnecting');
+
+            assert.strictEqual(state.syncStatus, 'reconnecting');
+            assert.strictEqual(received, 'reconnecting');
+            bus.off('syncstatus:changed', listener);
+        });
+
+        it('should track last error and emit error:changed', () => {
+            let received = null;
+            const listener = (val) => { received = val; };
+            bus.on('error:changed', listener);
+
+            state.setLastError('Sync failed');
+
+            assert.strictEqual(state.lastError, 'Sync failed');
+            assert.strictEqual(received, 'Sync failed');
+
+            state.clearLastError();
+            assert.strictEqual(state.lastError, '');
+            bus.off('error:changed', listener);
+        });
+    });
+
+    describe('timeline metadata', () => {
+
+        it('should update currentTimeline cache when the active timeline is renamed', () => {
+            state.setTimelines([{ id: 't1', name: 'Initial', description: '' }]);
+            state.setCurrentTimeline('t1');
+
+            state.updateTimelineMeta('t1', { name: 'Renamed' });
+
+            assert.ok(state.currentTimeline);
+            assert.strictEqual(state.currentTimeline.name, 'Renamed');
+        });
+
+        it('should clear currentTimeline cache when the active timeline is removed', () => {
+            state.setTimelines([{ id: 't1', name: 'Initial', description: '' }]);
+            state.setCurrentTimeline('t1');
+
+            state.removeTimeline('t1');
+
+            assert.strictEqual(state.currentTimelineId, null);
+            assert.strictEqual(state.currentTimeline, null);
+        });
     });
 
 });

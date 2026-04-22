@@ -12,6 +12,8 @@ class TimelineState {
     #connections = [];
     #annotations = new Map();
     #connected = false;
+    #syncStatus = 'disconnected';
+    #lastError = '';
     #userCount = 0;
     #timelines = [];
     #currentTimelineId = null;
@@ -27,6 +29,10 @@ class TimelineState {
     get annotations() { return this.#annotations; }
     /** @returns {boolean} WebSocket connection status */
     get connected() { return this.#connected; }
+    /** @returns {string} Sync lifecycle state */
+    get syncStatus() { return this.#syncStatus; }
+    /** @returns {string} Most recent user-visible error */
+    get lastError() { return this.#lastError; }
     /** @returns {number} Connected user count from server */
     get userCount() { return this.#userCount; }
     /** @returns {Array} Available timelines */
@@ -102,6 +108,7 @@ class TimelineState {
         this.#hostRegistry = null;
         this.#connections = [];
         this.#annotations = new Map();
+        this.#userCount = 0;
         bus.emit('events:cleared');
     }
 
@@ -144,6 +151,35 @@ class TimelineState {
     }
 
     /**
+     * Update sync lifecycle state. No-ops if unchanged.
+     * Emits `syncstatus:changed` with the new status.
+     *
+     * @param {string} status - One of connected, reconnecting, rejoining, failed, disconnected
+     */
+    setSyncStatus(status) {
+        if (this.#syncStatus === status) return;
+        this.#syncStatus = status;
+        bus.emit('syncstatus:changed', status);
+    }
+
+    /**
+     * Store a user-visible error message.
+     * Emits `error:changed`.
+     *
+     * @param {string} message - Error text for the UI
+     */
+    setLastError(message) {
+        if (this.#lastError === message) return;
+        this.#lastError = message;
+        bus.emit('error:changed', message);
+    }
+
+    /** Clear the current user-visible error message. */
+    clearLastError() {
+        this.setLastError('');
+    }
+
+    /**
      * Update the connected user count. No-ops if the value hasn't changed.
      * Emits `usercount:changed` with the count.
      *
@@ -176,6 +212,7 @@ class TimelineState {
      */
     addTimeline(timeline) {
         this.#timelines.push(timeline);
+        this.#updateCurrentTimelineCache();
         bus.emit('timeline:created', timeline);
     }
 
@@ -190,6 +227,7 @@ class TimelineState {
         const index = this.#timelines.findIndex(t => t.id === id);
         if (index === -1) return;
         this.#timelines[index] = { ...this.#timelines[index], ...updates };
+        this.#updateCurrentTimelineCache();
         bus.emit('timeline:updated', this.#timelines[index]);
     }
 
@@ -206,6 +244,7 @@ class TimelineState {
         if (this.#currentTimelineId === id) {
             this.#currentTimelineId = null;
         }
+        this.#updateCurrentTimelineCache();
         bus.emit('timeline:deleted', id);
     }
 
@@ -249,23 +288,6 @@ class TimelineState {
         }
     }
 
-    /**
-     * Subscribe to state events via the global bus.
-     * @param {string} event - Event name
-     * @param {Function} listener - Callback
-     */
-    on(event, listener) {
-        bus.on(event, listener);
-    }
-
-    /**
-     * Unsubscribe from state events.
-     * @param {string} event - Event name
-     * @param {Function} listener - Callback to remove
-     */
-    off(event, listener) {
-        bus.off(event, listener);
-    }
 }
 
 export const state = new TimelineState();

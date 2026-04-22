@@ -158,6 +158,8 @@ body {
 }
 
 .status-value.accent { color: var(--signal-green); }
+.status-value.warning { color: var(--signal-amber); }
+.status-value.error { color: var(--signal-red); }
 
 .status-divider {
     width: 1px;
@@ -186,6 +188,10 @@ body {
     background: var(--signal-red);
 }
 
+.status-led.warning {
+    background: var(--signal-amber);
+}
+
 @keyframes led-pulse {
     0%, 100% { box-shadow: 0 0 0 0 rgba(126, 231, 135, 0.5); }
     50%      { box-shadow: 0 0 0 4px rgba(126, 231, 135, 0); }
@@ -201,6 +207,44 @@ body {
     left: 0;
     right: 0;
     overflow: hidden;
+}
+
+.status-banner {
+    position: fixed;
+    top: calc(var(--status-bar-height) + 10px);
+    right: 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    background: rgba(255, 59, 48, 0.12);
+    border: 1px solid rgba(255, 59, 48, 0.4);
+    color: var(--signal-red);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    z-index: 450;
+}
+
+.status-retry-btn {
+    background: transparent;
+    border: 1px solid rgba(255, 59, 48, 0.4);
+    border-radius: var(--radius);
+    color: var(--signal-red);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 5px 8px;
+    cursor: pointer;
+    transition: color 120ms ease, border-color 120ms ease, background 120ms ease;
+}
+
+.status-retry-btn:hover {
+    background: var(--signal-red);
+    border-color: var(--signal-red);
+    color: var(--bg-base);
 }
 
 /* ================================
