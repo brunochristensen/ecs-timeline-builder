@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node server.js",
     "test": "node --test test/*.test.js",
-    "lint": "eslint js/*.js server.js server/*.js shared/*.js test/*.js"
+    "lint": "eslint client/**/*.js server.js server/*.js shared/*.js test/*.js"
   },
   "repository": {
     "type": "git",
@@ -29,3 +29,4 @@
     "globals": "^17.0.0"
   }
 }
+

@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert';
-import { TACTICS, TECHNIQUES, getTacticName, getTechniqueName } from '../js/mitre.js';
+import { TACTICS, TECHNIQUES, getTacticName, getTechniqueName } from '../client/mitre.js';
 
 describe('MITRE ATT&CK constants', () => {
 
@@ -78,3 +78,4 @@ describe('MITRE ATT&CK constants', () => {
     });
 
 });
+

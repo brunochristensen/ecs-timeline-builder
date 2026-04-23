@@ -1,13 +1,23 @@
 import bus from '../event-bus.js';
 import {EVENTS} from '../events.js';
 import {state} from '../state.js';
-import {isConnected, sendEventsToServer} from '../sync.js';
+import {sessionState} from '../stores/session-store.js';
+import {isTimelineReady, sendEventsToServer} from '../sync.js';
 
 let dropZone;
 let fileInput;
 let jsonInput;
 let parseBtn;
 let initialized = false;
+
+function requireTimelineReady(actionLabel) {
+    if (isTimelineReady()) {
+        return true;
+    }
+
+    sessionState.setLastError(`Cannot ${actionLabel} while timeline sync is not ready.`);
+    return false;
+}
 
 async function handleFiles(files) {
     let allContent = '';
@@ -45,6 +55,10 @@ function parseAndRender() {
         return;
     }
 
+    if (!requireTimelineReady('import events')) {
+        return;
+    }
+
     try {
         const result = state.addEvents(input);
 
@@ -59,10 +73,8 @@ function parseAndRender() {
             return;
         }
 
-        if (isConnected()) {
-            const rawEvents = result.added.map(event => ({_id: event.id, ...event.raw}));
-            sendEventsToServer(rawEvents);
-        }
+        const rawEvents = result.added.map(event => ({_id: event.id, ...event.raw}));
+        sendEventsToServer(rawEvents);
 
         jsonInput.value = '';
 

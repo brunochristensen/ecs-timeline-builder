@@ -275,6 +275,17 @@ export function isConnected() {
 }
 
 /**
+ * Checks whether room-scoped timeline mutations are safe to send.
+ *
+ * @returns {boolean} True when the socket is open, the sync lifecycle is connected, and a timeline is active
+ */
+export function isTimelineReady() {
+    return connectionActive
+        && sessionState.syncStatus === 'connected'
+        && Boolean(state.currentTimelineId);
+}
+
+/**
  * Requests the server to send the list of available timelines.
  *
  * @returns {boolean} True if message was sent

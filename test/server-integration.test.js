@@ -324,6 +324,8 @@ describe('Server WebSocket integration', () => {
 
             assert.strictEqual(deletedForOwner.timelineId, created.timeline.id);
             assert.strictEqual(deletedForPeer.timelineId, created.timeline.id);
+            await owner.expectNoMessage('TIMELINE_DELETED');
+            await peer.expectNoMessage('TIMELINE_DELETED');
 
             peer.send({
                 type: 'ADD_EVENTS',
@@ -339,6 +341,42 @@ describe('Server WebSocket integration', () => {
         } finally {
             await owner.close();
             await peer.close();
+        }
+    });
+
+    it('rejects invalid timeline metadata and accepts normalized create defaults', async () => {
+        const client = await createClient();
+
+        try {
+            client.send({type: 'CREATE_TIMELINE'});
+            const defaultCreated = await client.waitFor('TIMELINE_CREATED');
+            assert.strictEqual(defaultCreated.timeline.name, 'Untitled Timeline');
+            assert.strictEqual(defaultCreated.timeline.description, '');
+
+            client.send({type: 'CREATE_TIMELINE', name: {bad: true}});
+            const invalidCreate = await client.waitFor('ERROR');
+            assert.strictEqual(invalidCreate.message, 'CREATE_TIMELINE: invalid name');
+
+            client.send({
+                type: 'UPDATE_TIMELINE',
+                timelineId: defaultCreated.timeline.id,
+                description: {bad: true}
+            });
+            const invalidUpdate = await client.waitFor('ERROR');
+            assert.strictEqual(invalidUpdate.message, 'UPDATE_TIMELINE: invalid description');
+
+            client.send({
+                type: 'UPDATE_TIMELINE',
+                timelineId: defaultCreated.timeline.id,
+                name: ' Renamed Timeline ',
+                description: ' trimmed '
+            });
+
+            const updated = await client.waitFor('TIMELINE_UPDATED', message => message.timeline.id === defaultCreated.timeline.id);
+            assert.strictEqual(updated.timeline.name, 'Renamed Timeline');
+            assert.strictEqual(updated.timeline.description, 'trimmed');
+        } finally {
+            await client.close();
         }
     });
 });

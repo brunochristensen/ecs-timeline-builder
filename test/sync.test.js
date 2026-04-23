@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, it } from 'node:test';
 import assert from 'node:assert';
-import { state } from '../js/state.js';
-import { sessionState } from '../js/stores/session-store.js';
+import { state } from '../client/state.js';
+import { sessionState } from '../client/stores/session-store.js';
 
 class FakeWebSocket {
     static OPEN = 1;
@@ -82,9 +82,10 @@ describe('sync module reconnect behavior', () => {
     it('rejoins the active timeline on initial socket open', async () => {
         state.setCurrentTimeline('timeline-1');
 
-        await import(`../js/sync.js?test=${Date.now()}-${Math.random()}`);
+        const sync = await import(`../client/sync.js?test=${Date.now()}-${Math.random()}`);
 
         assert.strictEqual(FakeWebSocket.instances.length, 1);
+        assert.strictEqual(sync.isTimelineReady(), false);
 
         const socket = FakeWebSocket.instances[0];
         socket.emitOpen();
@@ -103,7 +104,7 @@ describe('sync module reconnect behavior', () => {
             return 1;
         };
 
-        await import(`../js/sync.js?test=${Date.now()}-${Math.random()}`);
+        const sync = await import(`../client/sync.js?test=${Date.now()}-${Math.random()}`);
 
         const firstSocket = FakeWebSocket.instances[0];
         firstSocket.emitOpen();
@@ -123,8 +124,26 @@ describe('sync module reconnect behavior', () => {
 
         assert.strictEqual(sessionState.connected, true);
         assert.strictEqual(sessionState.syncStatus, 'rejoining');
+        assert.strictEqual(sync.isTimelineReady(), false);
         assert.deepStrictEqual(secondSocket.sent, [
             { type: 'JOIN_TIMELINE', timelineId: 'timeline-2' }
         ]);
     });
+
+    it('reports timeline readiness only after connected sync and active timeline are both present', async () => {
+        const sync = await import(`../client/sync.js?test=${Date.now()}-${Math.random()}`);
+        const socket = FakeWebSocket.instances[0];
+
+        assert.strictEqual(sync.isTimelineReady(), false);
+
+        socket.emitOpen();
+        assert.strictEqual(sync.isTimelineReady(), false);
+
+        state.setCurrentTimeline('timeline-3');
+        assert.strictEqual(sync.isTimelineReady(), true);
+
+        sessionState.setSyncStatus('rejoining');
+        assert.strictEqual(sync.isTimelineReady(), false);
+    });
 });
+

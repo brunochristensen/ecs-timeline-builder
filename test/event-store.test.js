@@ -214,6 +214,18 @@ describe('EventStore', () => {
             assert.strictEqual(result['b'].comment, 'second');
         });
 
+        it('should return a defensive copy of annotations', () => {
+            const store = new EventStore();
+            store.setAnnotation('a', { comment: 'first' });
+
+            const annotations = store.getAnnotations();
+            annotations.a.comment = 'mutated';
+            delete annotations.a;
+
+            const fresh = store.getAnnotations();
+            assert.strictEqual(fresh.a.comment, 'first');
+        });
+
     });
 
     describe('getAll()', () => {
@@ -224,6 +236,19 @@ describe('EventStore', () => {
 
             const all = store.getAll();
             assert.strictEqual(all.length, 2);
+        });
+
+        it('should return a defensive copy of stored events', () => {
+            const store = new EventStore();
+            store.addEvents([{ _id: 'x', host: { hostname: 'host-x' } }]);
+
+            const events = store.getAll();
+            events[0].host.hostname = 'mutated';
+            events.push({ _id: 'y' });
+
+            const fresh = store.getAll();
+            assert.strictEqual(fresh.length, 1);
+            assert.strictEqual(fresh[0].host.hostname, 'host-x');
         });
 
     });

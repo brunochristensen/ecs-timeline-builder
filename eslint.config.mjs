@@ -2,7 +2,7 @@ import globals from 'globals';
 
 export default [
     {
-        files: ['js/*.js'],
+        files: ['client/**/*.js'],
         languageOptions: {
             ecmaVersion: 2022,
             globals: {
@@ -34,3 +34,4 @@ export default [
         }
     }
 ];
+

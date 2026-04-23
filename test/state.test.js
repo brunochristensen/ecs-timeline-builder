@@ -4,9 +4,9 @@ import assert from 'node:assert';
 // state.js exports a singleton, so we need to test it carefully.
 // We clear state between tests and track emitted events via the bus.
 
-import { state } from '../js/state.js';
-import bus from '../js/event-bus.js';
-import { sessionState } from '../js/stores/session-store.js';
+import { state } from '../client/state.js';
+import bus from '../client/event-bus.js';
+import { sessionState } from '../client/stores/session-store.js';
 
 describe('TimelineState', () => {
 
@@ -394,3 +394,4 @@ describe('TimelineState', () => {
     });
 
 });
+

@@ -2,19 +2,29 @@ import bus from '../event-bus.js';
 import {EVENTS} from '../events.js';
 import {renderEventDetailPanel, renderMitreOptions} from '../detail-renderer.js';
 import {
-    isConnected,
+    isTimelineReady,
     sendDeleteToServer,
     sendAnnotationToServer,
     sendDeleteAnnotationToServer
 } from '../sync.js';
 import {state} from '../state.js';
 import {TECHNIQUES} from '../mitre.js';
+import {sessionState} from '../stores/session-store.js';
 
 let eventDetail;
 let detailContent;
 let closeDetailBtn;
 let currentDetailEvent = null;
 let initialized = false;
+
+function requireTimelineReady(actionLabel) {
+    if (isTimelineReady()) {
+        return true;
+    }
+
+    sessionState.setLastError(`Cannot ${actionLabel} while timeline sync is not ready.`);
+    return false;
+}
 
 function hideEventDetail() {
     if (eventDetail) {
@@ -39,10 +49,8 @@ export function showEventDetail(event) {
         deleteBtn.addEventListener('click', () => {
             const eventId = deleteBtn.dataset.eventId;
             if (confirm('Delete this event? This cannot be undone.')) {
-                if (isConnected()) {
+                if (requireTimelineReady('delete events')) {
                     sendDeleteToServer(eventId);
-                } else {
-                    state.deleteEvent(eventId);
                 }
             }
         });
@@ -65,14 +73,8 @@ export function showEventDetail(event) {
             const mitreTechnique = document.getElementById('annotation-technique').value;
             const annotationData = {comment, mitreTactic, mitreTechnique};
 
-            if (isConnected()) {
+            if (requireTimelineReady('save annotations')) {
                 sendAnnotationToServer(event.id, annotationData);
-            } else {
-                state.setAnnotation(event.id, {
-                    eventId: event.id,
-                    ...annotationData,
-                    updatedAt: Date.now()
-                });
             }
         });
     }
@@ -80,10 +82,8 @@ export function showEventDetail(event) {
     const deleteAnnotationBtn = document.getElementById('delete-annotation-btn');
     if (deleteAnnotationBtn) {
         deleteAnnotationBtn.addEventListener('click', () => {
-            if (isConnected()) {
+            if (requireTimelineReady('delete annotations')) {
                 sendDeleteAnnotationToServer(event.id);
-            } else {
-                state.deleteAnnotation(event.id);
             }
         });
     }

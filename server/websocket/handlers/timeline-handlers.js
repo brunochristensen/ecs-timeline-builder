@@ -1,6 +1,10 @@
 import {sendError, sendJson} from '../respond.js';
 import {WS_MESSAGE_TYPES} from '../../../shared/ws-protocol.js';
-import {requireTimelineId} from '../../validation.js';
+import {
+    requireTimelineId,
+    validateCreateTimelineMetadata,
+    validateUpdateTimelineMetadata
+} from '../../validation.js';
 
 export function createTimelineHandlers({manager, roomManager}) {
     const {
@@ -18,10 +22,15 @@ export function createTimelineHandlers({manager, roomManager}) {
             });
         },
 
-        async [WS_MESSAGE_TYPES.CREATE_TIMELINE]({message}) {
+        async [WS_MESSAGE_TYPES.CREATE_TIMELINE]({ws, message}) {
+            const metadata = validateCreateTimelineMetadata(ws, message, sendError);
+            if (!metadata) {
+                return;
+            }
+
             const timeline = await manager.createTimeline(
-                message.name,
-                message.description || ''
+                metadata.name,
+                metadata.description
             );
             broadcastToAll({
                 type: WS_MESSAGE_TYPES.TIMELINE_CREATED,
@@ -34,10 +43,12 @@ export function createTimelineHandlers({manager, roomManager}) {
                 return;
             }
 
-            const updated = await manager.updateTimeline(message.timelineId, {
-                name: message.name,
-                description: message.description
-            });
+            const updates = validateUpdateTimelineMetadata(ws, message, sendError);
+            if (!updates) {
+                return;
+            }
+
+            const updated = await manager.updateTimeline(message.timelineId, updates);
 
             if (updated) {
                 broadcastToAll({

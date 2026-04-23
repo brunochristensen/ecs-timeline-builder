@@ -1,7 +1,7 @@
 import { beforeEach, describe, it } from 'node:test';
 import assert from 'node:assert';
-import bus from '../js/event-bus.js';
-import { sessionState } from '../js/stores/session-store.js';
+import bus from '../client/event-bus.js';
+import { sessionState } from '../client/stores/session-store.js';
 
 describe('SessionStore', () => {
     beforeEach(() => {
@@ -65,3 +65,4 @@ describe('SessionStore', () => {
         bus.off('usercount:changed', listener);
     });
 });
+

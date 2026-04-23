@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert';
-import { EventEmitter } from '../js/event-emitter.js';
+import { EventEmitter } from '../client/event-emitter.js';
 
 describe('EventEmitter', () => {
 
@@ -99,3 +99,4 @@ describe('EventEmitter', () => {
     });
 
 });
+
