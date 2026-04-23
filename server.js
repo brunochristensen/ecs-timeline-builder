@@ -10,6 +10,7 @@ import WebSocket, { WebSocketServer } from 'ws';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { TimelineManager } from './server/timeline-manager.js';
+import { createRoomManager } from './server/websocket/room-manager.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -25,74 +26,15 @@ const HEARTBEAT_TIMEOUT = 90000;
 
 // State
 const manager = new TimelineManager();
-const rooms = new Map();  // timelineId → Set<WebSocket>
-
-/**
- * Broadcast a message to all clients in a specific timeline room.
- */
-function broadcastToRoom(timelineId, message, excludeWs = null) {
-    const room = rooms.get(timelineId);
-    if (!room) return;
-
-    const msgString = JSON.stringify(message);
-    for (const client of room) {
-        if (client !== excludeWs && client.readyState === WebSocket.OPEN) {
-            client.send(msgString);
-        }
-    }
-}
-
-/**
- * Broadcast a message to ALL connected clients (for timeline list updates).
- */
-function broadcastToAll(message, excludeWs = null) {
-    const msgString = JSON.stringify(message);
-    wss.clients.forEach(client => {
-        if (client !== excludeWs && client.readyState === WebSocket.OPEN) {
-            client.send(msgString);
-        }
-    });
-}
-
-/**
- * Adds a client to a timeline room.
- */
-function joinRoom(ws, timelineId) {
-    if (ws.currentTimeline) {
-        leaveRoom(ws, ws.currentTimeline);
-    }
-
-    if (!rooms.has(timelineId)) {
-        rooms.set(timelineId, new Set());
-    }
-    rooms.get(timelineId).add(ws);
-    ws.currentTimeline = timelineId;
-
-    broadcastToRoom(timelineId, {
-        type: 'USER_COUNT',
-        count: rooms.get(timelineId).size
-    });
-
-    return rooms.get(timelineId).size;
-}
-
-/**
- * Removes a client from a timeline room.
- */
-function leaveRoom(ws, timelineId) {
-    const room = rooms.get(timelineId);
-    if (room) {
-        room.delete(ws);
-        broadcastToRoom(timelineId, {
-            type: 'USER_COUNT',
-            count: room.size
-        });
-        if (room.size === 0) {
-            rooms.delete(timelineId);
-        }
-    }
-    ws.currentTimeline = null;
-}
+const roomManager = createRoomManager(wss);
+const {
+    broadcastToRoom,
+    broadcastToAll,
+    joinRoom,
+    leaveRoom,
+    clearTimelineRoom,
+    roomCount
+} = roomManager;
 
 // WebSocket connection handling
 wss.on('connection', (ws) => {
@@ -160,17 +102,7 @@ wss.on('connection', (ws) => {
                     }
                     const deleted = await manager.deleteTimeline(message.timelineId);
                     if (deleted) {
-                        const room = rooms.get(message.timelineId);
-                        if (room) {
-                            for (const client of room) {
-                                client.send(JSON.stringify({
-                                    type: 'TIMELINE_DELETED',
-                                    timelineId: message.timelineId
-                                }));
-                                client.currentTimeline = null;
-                            }
-                            rooms.delete(message.timelineId);
-                        }
+                        clearTimelineRoom(message.timelineId);
                         broadcastToAll({
                             type: 'TIMELINE_DELETED',
                             timelineId: message.timelineId
@@ -399,7 +331,7 @@ app.get('/health', (req, res) => {
         clients: wss.clients.size,
         timelines: timelines.length,
         loadedStores: loadedStores.length,
-        rooms: rooms.size,
+        rooms: roomCount(),
         memory: {
             heapUsedMB: Math.round(mem.heapUsed / 1024 / 1024),
             heapTotalMB: Math.round(mem.heapTotal / 1024 / 1024)
@@ -467,3 +399,4 @@ server.listen(PORT, '0.0.0.0', () => {
     console.log(`ECS Timeline Builder server running on http://localhost:${PORT}`);
     console.log(`Timelines: ${manager.listTimelines().length}`);
 });
+

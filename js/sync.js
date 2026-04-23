@@ -3,7 +3,8 @@
  * Handles real-time synchronization with server
  */
 
-import { state } from './state.js';
+import {state} from './state.js';
+import {sessionState} from './stores/session-store.js';
 
 const MAX_RECONNECT_ATTEMPTS = 10;
 const BASE_RECONNECT_DELAY_MS = 1000;
@@ -39,14 +40,14 @@ function connect() {
     ws.onopen = () => {
         console.log('WebSocket connected');
         connectionActive = true;
-        state.setConnected(true);
-        state.clearLastError();
+        sessionState.setConnected(true);
+        sessionState.clearLastError();
 
         if (state.currentTimelineId) {
-            state.setSyncStatus('rejoining');
-            send({ type: 'JOIN_TIMELINE', timelineId: state.currentTimelineId });
+            sessionState.setSyncStatus('rejoining');
+            send({type: 'JOIN_TIMELINE', timelineId: state.currentTimelineId});
         } else {
-            state.setSyncStatus('connected');
+            sessionState.setSyncStatus('connected');
         }
 
         reconnectAttempts = 0;
@@ -64,8 +65,8 @@ function connect() {
     ws.onclose = () => {
         console.log('WebSocket disconnected');
         connectionActive = false;
-        state.setConnected(false);
-        state.setSyncStatus('reconnecting');
+        sessionState.setConnected(false);
+        sessionState.setSyncStatus('reconnecting');
         attemptReconnect();
     };
 
@@ -81,8 +82,8 @@ function connect() {
 function attemptReconnect() {
     if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
         console.error('Max reconnection attempts reached');
-        state.setSyncStatus('failed');
-        state.setLastError(buildReconnectErrorMessage());
+        sessionState.setSyncStatus('failed');
+        sessionState.setLastError(buildReconnectErrorMessage());
         return;
     }
 
@@ -109,7 +110,7 @@ function handleMessage(message) {
             console.log(`Received ${message.timelines.length} timeline(s)`);
             state.setTimelines(message.timelines);
             if (!state.currentTimelineId) {
-                state.setSyncStatus('connected');
+                sessionState.setSyncStatus('connected');
             }
             break;
 
@@ -133,14 +134,14 @@ function handleMessage(message) {
             state.clearForTimelineSwitch();
             state.setCurrentTimeline(message.timelineId);
             state.setEvents(message.events, message.annotations || {});
-            state.setUserCount(typeof message.userCount === 'number' ? message.userCount : state.userCount);
-            state.setSyncStatus('connected');
+            sessionState.setUserCount(typeof message.userCount === 'number' ? message.userCount : sessionState.userCount);
+            sessionState.setSyncStatus('connected');
             break;
 
         case 'LEFT_TIMELINE':
             console.log(`Left timeline: ${message.timelineId}`);
             state.clearForTimelineSwitch();
-            state.setSyncStatus('connected');
+            sessionState.setSyncStatus('connected');
             break;
 
         case 'SYNC':
@@ -168,7 +169,7 @@ function handleMessage(message) {
             break;
 
         case 'USER_COUNT':
-            state.setUserCount(message.count);
+            sessionState.setUserCount(message.count);
             break;
 
         case 'ANNOTATION_UPDATED':
@@ -180,12 +181,12 @@ function handleMessage(message) {
             break;
 
         case 'PING':
-            send({ type: 'PONG' });
+            send({type: 'PONG'});
             break;
 
         case 'ERROR':
             console.error('Server error:', message.message);
-            state.setLastError(message.message || 'Server error');
+            sessionState.setLastError(message.message || 'Server error');
             break;
 
         default:
@@ -214,7 +215,7 @@ function send(message) {
  * @returns {boolean} True if message was sent, false if not connected
  */
 export function sendEventsToServer(rawEvents) {
-    return send({ type: 'ADD_EVENTS', events: rawEvents });
+    return send({type: 'ADD_EVENTS', events: rawEvents});
 }
 
 /**
@@ -224,7 +225,7 @@ export function sendEventsToServer(rawEvents) {
  * @returns {boolean} True if message was sent, false if not connected
  */
 export function sendDeleteToServer(eventId) {
-    return send({ type: 'DELETE_EVENT', eventId });
+    return send({type: 'DELETE_EVENT', eventId});
 }
 
 /**
@@ -233,7 +234,7 @@ export function sendDeleteToServer(eventId) {
  * @returns {boolean} True if message was sent, false if not connected
  */
 export function sendClearToServer() {
-    return send({ type: 'CLEAR' });
+    return send({type: 'CLEAR'});
 }
 
 /**
@@ -260,7 +261,7 @@ export function sendAnnotationToServer(eventId, annotation) {
  * @returns {boolean} True if message was sent
  */
 export function sendDeleteAnnotationToServer(eventId) {
-    return send({ type: 'DELETE_ANNOTATION', eventId });
+    return send({type: 'DELETE_ANNOTATION', eventId});
 }
 
 /**
@@ -278,7 +279,7 @@ export function isConnected() {
  * @returns {boolean} True if message was sent
  */
 export function requestTimelineList() {
-    return send({ type: 'LIST_TIMELINES' });
+    return send({type: 'LIST_TIMELINES'});
 }
 
 /**
@@ -289,7 +290,7 @@ export function requestTimelineList() {
  * @returns {boolean} True if message was sent
  */
 export function createTimeline(name, description = '') {
-    return send({ type: 'CREATE_TIMELINE', name, description });
+    return send({type: 'CREATE_TIMELINE', name, description});
 }
 
 /**
@@ -299,9 +300,9 @@ export function createTimeline(name, description = '') {
  * @returns {boolean} True if message was sent
  */
 export function joinTimeline(timelineId) {
-    state.clearLastError();
-    state.setSyncStatus('rejoining');
-    return send({ type: 'JOIN_TIMELINE', timelineId });
+    sessionState.clearLastError();
+    sessionState.setSyncStatus('rejoining');
+    return send({type: 'JOIN_TIMELINE', timelineId});
 }
 
 /**
@@ -310,7 +311,7 @@ export function joinTimeline(timelineId) {
  * @returns {boolean} True if message was sent
  */
 export function leaveTimeline() {
-    return send({ type: 'LEAVE_TIMELINE' });
+    return send({type: 'LEAVE_TIMELINE'});
 }
 
 /**
@@ -320,7 +321,7 @@ export function leaveTimeline() {
  * @returns {boolean} True if message was sent
  */
 export function deleteTimeline(timelineId) {
-    return send({ type: 'DELETE_TIMELINE', timelineId });
+    return send({type: 'DELETE_TIMELINE', timelineId});
 }
 
 /**
@@ -331,7 +332,7 @@ export function deleteTimeline(timelineId) {
  * @returns {boolean} True if message was sent
  */
 export function updateTimeline(timelineId, updates) {
-    return send({ type: 'UPDATE_TIMELINE', timelineId, ...updates });
+    return send({type: 'UPDATE_TIMELINE', timelineId, ...updates});
 }
 
 /**
@@ -339,8 +340,8 @@ export function updateTimeline(timelineId, updates) {
  */
 export function retryConnection() {
     reconnectAttempts = 0;
-    state.clearLastError();
-    state.setSyncStatus('reconnecting');
+    sessionState.clearLastError();
+    sessionState.setSyncStatus('reconnecting');
 
     if (ws && ws.readyState === WebSocket.OPEN) {
         ws.close();

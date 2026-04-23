@@ -4,9 +4,9 @@
  */
 
 import bus from './event-bus.js';
-import { state } from './state.js';
-import { joinTimeline, createTimeline, deleteTimeline } from './sync.js';
-import { escapeHtml } from './utils.js';
+import {state} from './state.js';
+import {joinTimeline, createTimeline, deleteTimeline} from './sync.js';
+import {escapeHtml} from './utils.js';
 
 let selectorElement = null;
 
@@ -236,7 +236,7 @@ export function getTimelineIdFromUrl() {
 function formatDate(isoString) {
     if (!isoString) return 'unknown';
     const d = new Date(isoString);
-    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    return d.toLocaleDateString('en-US', {month: 'short', day: 'numeric', year: 'numeric'});
 }
 
 /**

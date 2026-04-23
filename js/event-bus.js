@@ -4,7 +4,7 @@
  * Singleton instance — all modules import the same bus.
  */
 
-import { EventEmitter } from './event-emitter.js';
+import {EventEmitter} from './event-emitter.js';
 
 /**
  * Global event bus for decoupled module communication.

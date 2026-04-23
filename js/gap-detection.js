@@ -1,7 +1,7 @@
 import bus from './event-bus.js';
-import { state } from './state.js';
-import { TACTICS, getTacticName } from './mitre.js';
-import { escapeHtml } from './utils.js';
+import {state} from './state.js';
+import {TACTICS, getTacticName} from './mitre.js';
+import {escapeHtml} from './utils.js';
 
 /**
  * Gap Detection — per-host MITRE ATT&CK tactic coverage indicator.

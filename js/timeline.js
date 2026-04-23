@@ -5,12 +5,12 @@
 
 // Configuration
 const config = {
-        margin: {top: 110, right: 70, bottom: 40, left: 220},
-        laneHeight: 60,
-        eventRadius: 5,
-        minWidth: 800,
-        transitionDuration: 300
-    };
+    margin: {top: 110, right: 70, bottom: 40, left: 220},
+    laneHeight: 60,
+    eventRadius: 5,
+    minWidth: 800,
+    transitionDuration: 300
+};
 
 /**
  * Calculate top margin based on the floating input box position so that swim lanes
@@ -374,7 +374,7 @@ function renderEvents(events, xScale, yScale, hostRegistry, annotations) {
         .data(allEvents, d => d.id);
 
     const isAnnotated = d => annotations && annotations.has(d.id);
-    const dotClass  = d => isAnnotated(d) ? `event-dot ${d.category} annotated` : `event-dot ${d.category}`;
+    const dotClass = d => isAnnotated(d) ? `event-dot ${d.category} annotated` : `event-dot ${d.category}`;
     const dotRadius = d => isAnnotated(d) ? 6 : 4.5;
 
     // Enter

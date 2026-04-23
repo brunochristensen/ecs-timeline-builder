@@ -7,8 +7,8 @@ import {
     zoomReset,
     clearTimelineVisualization
 } from "./timeline.js";
-import { formatDuration } from "./utils.js";
-import { renderEventDetailPanel, renderMitreOptions } from "./detail-renderer.js";
+import {formatDuration} from "./utils.js";
+import {renderEventDetailPanel, renderMitreOptions} from "./detail-renderer.js";
 import {
     isConnected,
     sendEventsToServer,
@@ -19,10 +19,11 @@ import {
     joinTimeline,
     retryConnection
 } from "./sync.js";
-import { state } from "./state.js";
-import { TECHNIQUES } from "./mitre.js";
+import {state} from "./state.js";
+import {sessionState} from "./stores/session-store.js";
+import {TECHNIQUES} from "./mitre.js";
 import "./gap-detection.js";
-import { showSelector, getTimelineIdFromUrl } from "./timeline-selector.js";
+import {showSelector, getTimelineIdFromUrl} from "./timeline-selector.js";
 
 // DOM Elements
 const dropZone = document.getElementById('drop-zone');
@@ -76,13 +77,13 @@ function init() {
     setupStatusActions();
     subscribeToState();
 
-    // After WebSocket connects and we receive timeline list, handle auto-join or show selector
+    // After WebSocket connects, and we receive timeline list, handle auto-join or show selector
     bus.on('timelines:changed', handleTimelineListReceived);
 }
 
 /**
- * Handles the initial timeline list received from server.
- * Auto-joins if URL has timeline param, otherwise shows selector.
+ * Handles the initial timeline list received from the server.
+ * Auto-joins if the URL has the timeline param, otherwise shows the selector.
  */
 function handleTimelineListReceived() {
     if (initialTimelineHandled) return;
@@ -97,7 +98,7 @@ function handleTimelineListReceived() {
         }
     }
 
-    // No URL param or timeline not found, show selector
+    // No URL param or the timeline isn't found, show selector
     showSelector();
 }
 
@@ -122,9 +123,9 @@ function updateTimelineDisplay() {
 /**
  * Updates status-bar link text and indicator from sync lifecycle state.
  *
- * @param {string} [status=state.syncStatus] - Current sync lifecycle state
+ * @param {string} [status=sessionState.syncStatus] - Current sync lifecycle state
  */
-function updateSyncStatus(status = state.syncStatus) {
+function updateSyncStatus(status = sessionState.syncStatus) {
     if (statusLed) {
         statusLed.classList.toggle('connected', status === 'connected');
         statusLed.classList.toggle('disconnected', status === 'failed' || status === 'disconnected');
@@ -165,9 +166,9 @@ function updateSyncStatus(status = state.syncStatus) {
 /**
  * Show or hide the visible sync/server error banner.
  *
- * @param {string} [message=state.lastError] - Error to surface to the user
+ * @param {string} [message=sessionState.lastError] - Error to surface to the user
  */
-function updateErrorBanner(message = state.lastError) {
+function updateErrorBanner(message = sessionState.lastError) {
     if (!statusAlert || !statusMessage) return;
     const hasMessage = Boolean(message);
     statusAlert.hidden = !hasMessage;
@@ -204,7 +205,7 @@ function stampSync() {
 }
 
 /**
- * Refreshes the timeline visualization and UI controls to match current state.
+ * Refreshes the timeline visualization and UI controls to match the current state.
  * Renders events when present, otherwise shows the empty state.
  */
 function refreshTimelineUi() {
@@ -252,13 +253,6 @@ function subscribeToState() {
     });
 
     bus.on('connection:changed', (connected) => {
-        if (statusLed) {
-            statusLed.classList.toggle('connected', connected);
-            statusLed.classList.toggle('disconnected', !connected);
-        }
-        if (statusLink) {
-            statusLink.textContent = connected ? 'ACTIVE' : 'RECONNECTING';
-        }
         if (!connected) {
             document.getElementById('stat-users').textContent = '—';
         }
@@ -308,7 +302,7 @@ function resetStats() {
 }
 
 /**
- * Updates the statistics panel from current state.
+ * Updates the statistics panel from the current state.
  */
 function updateStats() {
     const events = state.events;
@@ -421,7 +415,7 @@ function setupPasteInput() {
 }
 
 /**
- * Parses JSON input, deduplicates against existing events, and syncs to server.
+ * Parses JSON input, deduplicates against existing events, and syncs to the server.
  * State subscriptions handle rendering and UI updates.
  */
 function parseAndRender() {
@@ -448,7 +442,7 @@ function parseAndRender() {
 
         // Send to server for broadcast to other clients
         if (isConnected()) {
-            const rawEvents = result.added.map(e => ({ _id: e.id, ...e.raw }));
+            const rawEvents = result.added.map(e => ({_id: e.id, ...e.raw}));
             sendEventsToServer(rawEvents);
         }
 
@@ -543,7 +537,7 @@ function showEventDetail(event) {
             const mitreTactic = document.getElementById('annotation-tactic').value;
             const mitreTechnique = document.getElementById('annotation-technique').value;
 
-            const annotationData = { comment, mitreTactic, mitreTechnique };
+            const annotationData = {comment, mitreTactic, mitreTechnique};
 
             if (isConnected()) {
                 sendAnnotationToServer(event.id, annotationData);
@@ -619,7 +613,7 @@ function exportTimeline() {
 
 /**
  * Initiates timeline clear operation.
- * If connected, sends clear request to server; otherwise clears locally.
+ * If connected, sends the clear request to the server; otherwise clears locally.
  */
 function clearTimeline() {
     if (isConnected()) {

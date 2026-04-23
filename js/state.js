@@ -1,44 +1,71 @@
 import bus from './event-bus.js';
-import { parseEvents, buildHostRegistry, identifyConnections } from './parser.js';
-import { deduplicateEvents } from '../shared/dedup.js';
+import {parseEvents, buildHostRegistry, identifyConnections} from './parser.js';
+import {deduplicateEvents} from '../shared/dedup.js';
+import {sessionState} from './stores/session-store.js';
 
 /**
- * Centralized timeline state store. Single source of truth for events, annotations,
- * timeline metadata, and connection status. Emits state changes to the global event bus.
+ * Centralized timeline/domain state store. Holds canonical timeline data and
+ * compatibility shims for legacy session-state access during refactor.
  */
 class TimelineState {
     #events = [];
     #hostRegistry = null;
     #connections = [];
     #annotations = new Map();
-    #connected = false;
-    #syncStatus = 'disconnected';
-    #lastError = '';
-    #userCount = 0;
     #timelines = [];
     #currentTimelineId = null;
     #currentTimelineCache = null;
 
     /** @returns {Array} Parsed event objects */
-    get events() { return this.#events; }
+    get events() {
+        return this.#events;
+    }
+
     /** @returns {Object|null} Host registry with getHostList()/getEventsForHost()/resolveIp() */
-    get hostRegistry() { return this.#hostRegistry; }
+    get hostRegistry() {
+        return this.#hostRegistry;
+    }
+
     /** @returns {Array} Cross-host connection objects */
-    get connections() { return this.#connections; }
+    get connections() {
+        return this.#connections;
+    }
+
     /** @returns {Map<string, Object>} Map of eventId to annotation */
-    get annotations() { return this.#annotations; }
+    get annotations() {
+        return this.#annotations;
+    }
+
     /** @returns {boolean} WebSocket connection status */
-    get connected() { return this.#connected; }
+    get connected() {
+        return sessionState.connected;
+    }
+
     /** @returns {string} Sync lifecycle state */
-    get syncStatus() { return this.#syncStatus; }
+    get syncStatus() {
+        return sessionState.syncStatus;
+    }
+
     /** @returns {string} Most recent user-visible error */
-    get lastError() { return this.#lastError; }
+    get lastError() {
+        return sessionState.lastError;
+    }
+
     /** @returns {number} Connected user count from server */
-    get userCount() { return this.#userCount; }
+    get userCount() {
+        return sessionState.userCount;
+    }
+
     /** @returns {Array} Available timelines */
-    get timelines() { return this.#timelines; }
+    get timelines() {
+        return this.#timelines;
+    }
+
     /** @returns {string|null} Currently joined timeline ID */
-    get currentTimelineId() { return this.#currentTimelineId; }
+    get currentTimelineId() {
+        return this.#currentTimelineId;
+    }
+
     /** @returns {Object|null} Currently joined timeline metadata */
     get currentTimeline() {
         return this.#currentTimelineCache;
@@ -54,18 +81,18 @@ class TimelineState {
     addEvents(rawInput) {
         const parsed = parseEvents(rawInput);
         if (parsed.length === 0) {
-            return { parsed: 0, added: [], duplicates: 0 };
+            return {parsed: 0, added: [], duplicates: 0};
         }
 
         const unique = deduplicateEvents(parsed, this.#events);
         if (unique.length === 0) {
-            return { parsed: parsed.length, added: [], duplicates: parsed.length };
+            return {parsed: parsed.length, added: [], duplicates: parsed.length};
         }
 
         this.#events = [...this.#events, ...unique];
         this.#rebuild();
         bus.emit('events:added', unique);
-        return { parsed: parsed.length, added: unique, duplicates: parsed.length - unique.length };
+        return {parsed: parsed.length, added: unique, duplicates: parsed.length - unique.length};
     }
 
     /**
@@ -108,7 +135,7 @@ class TimelineState {
         this.#hostRegistry = null;
         this.#connections = [];
         this.#annotations = new Map();
-        this.#userCount = 0;
+        sessionState.setUserCount(0);
         bus.emit('events:cleared');
     }
 
@@ -145,9 +172,7 @@ class TimelineState {
      * @param {boolean} connected - Whether the WebSocket is currently connected
      */
     setConnected(connected) {
-        if (this.#connected === connected) return;
-        this.#connected = connected;
-        bus.emit('connection:changed', connected);
+        sessionState.setConnected(connected);
     }
 
     /**
@@ -157,9 +182,7 @@ class TimelineState {
      * @param {string} status - One of connected, reconnecting, rejoining, failed, disconnected
      */
     setSyncStatus(status) {
-        if (this.#syncStatus === status) return;
-        this.#syncStatus = status;
-        bus.emit('syncstatus:changed', status);
+        sessionState.setSyncStatus(status);
     }
 
     /**
@@ -169,14 +192,12 @@ class TimelineState {
      * @param {string} message - Error text for the UI
      */
     setLastError(message) {
-        if (this.#lastError === message) return;
-        this.#lastError = message;
-        bus.emit('error:changed', message);
+        sessionState.setLastError(message);
     }
 
     /** Clear the current user-visible error message. */
     clearLastError() {
-        this.setLastError('');
+        sessionState.clearLastError();
     }
 
     /**
@@ -186,9 +207,7 @@ class TimelineState {
      * @param {number} count - Number of connected users
      */
     setUserCount(count) {
-        if (this.#userCount === count) return;
-        this.#userCount = count;
-        bus.emit('usercount:changed', count);
+        sessionState.setUserCount(count);
     }
 
     /**
@@ -226,7 +245,7 @@ class TimelineState {
     updateTimelineMeta(id, updates) {
         const index = this.#timelines.findIndex(t => t.id === id);
         if (index === -1) return;
-        this.#timelines[index] = { ...this.#timelines[index], ...updates };
+        this.#timelines[index] = {...this.#timelines[index], ...updates};
         this.#updateCurrentTimelineCache();
         bus.emit('timeline:updated', this.#timelines[index]);
     }
