@@ -1,16 +1,15 @@
 import bus from './event-bus.js';
-import {parseEvents, buildHostRegistry, identifyConnections} from './parser.js';
+import {EVENTS} from './events.js';
+import {parseEvents} from './parser.js';
 import {deduplicateEvents} from '../shared/dedup.js';
-import {sessionState} from './stores/session-store.js';
+import {getConnections, getHostRegistry, invalidateTimelineSelectors} from './selectors/timeline-selectors.js';
 
 /**
- * Centralized timeline/domain state store. Holds canonical timeline data and
- * compatibility shims for legacy session-state access during refactor.
+ * Centralized timeline/domain state store. Holds canonical timeline data:
+ * events, annotations, timeline metadata, and active timeline selection.
  */
 class TimelineState {
     #events = [];
-    #hostRegistry = null;
-    #connections = [];
     #annotations = new Map();
     #timelines = [];
     #currentTimelineId = null;
@@ -23,37 +22,17 @@ class TimelineState {
 
     /** @returns {Object|null} Host registry with getHostList()/getEventsForHost()/resolveIp() */
     get hostRegistry() {
-        return this.#hostRegistry;
+        return getHostRegistry(this.#events);
     }
 
     /** @returns {Array} Cross-host connection objects */
     get connections() {
-        return this.#connections;
+        return getConnections(this.#events);
     }
 
     /** @returns {Map<string, Object>} Map of eventId to annotation */
     get annotations() {
         return this.#annotations;
-    }
-
-    /** @returns {boolean} WebSocket connection status */
-    get connected() {
-        return sessionState.connected;
-    }
-
-    /** @returns {string} Sync lifecycle state */
-    get syncStatus() {
-        return sessionState.syncStatus;
-    }
-
-    /** @returns {string} Most recent user-visible error */
-    get lastError() {
-        return sessionState.lastError;
-    }
-
-    /** @returns {number} Connected user count from server */
-    get userCount() {
-        return sessionState.userCount;
     }
 
     /** @returns {Array} Available timelines */
@@ -90,8 +69,8 @@ class TimelineState {
         }
 
         this.#events = [...this.#events, ...unique];
-        this.#rebuild();
-        bus.emit('events:added', unique);
+        invalidateTimelineSelectors();
+        bus.emit(EVENTS.EVENTS_ADDED, unique);
         return {parsed: parsed.length, added: unique, duplicates: parsed.length - unique.length};
     }
 
@@ -105,8 +84,8 @@ class TimelineState {
     setEvents(rawEvents, annotations = {}) {
         this.#events = rawEvents.length > 0 ? parseEvents(rawEvents) : [];
         this.#annotations = new Map(Object.entries(annotations));
-        this.#rebuild();
-        bus.emit('events:synced');
+        invalidateTimelineSelectors();
+        bus.emit(EVENTS.EVENTS_SYNCED);
     }
 
     /**
@@ -120,10 +99,11 @@ class TimelineState {
         const index = this.#events.findIndex(e => e.id === eventId);
         if (index === -1) return null;
 
-        const [removed] = this.#events.splice(index, 1);
+        const removed = this.#events[index];
+        this.#events = this.#events.filter(event => event.id !== eventId);
         this.#annotations.delete(eventId);
-        this.#rebuild();
-        bus.emit('event:deleted', eventId);
+        invalidateTimelineSelectors();
+        bus.emit(EVENTS.EVENT_DELETED, eventId);
         return removed;
     }
 
@@ -132,11 +112,9 @@ class TimelineState {
      */
     clear() {
         this.#events = [];
-        this.#hostRegistry = null;
-        this.#connections = [];
         this.#annotations = new Map();
-        sessionState.setUserCount(0);
-        bus.emit('events:cleared');
+        invalidateTimelineSelectors();
+        bus.emit(EVENTS.EVENTS_CLEARED);
     }
 
     /**
@@ -148,7 +126,7 @@ class TimelineState {
      */
     setAnnotation(eventId, annotation) {
         this.#annotations.set(eventId, annotation);
-        bus.emit('annotation:updated', eventId, annotation);
+        bus.emit(EVENTS.ANNOTATION_UPDATED, eventId, annotation);
     }
 
     /**
@@ -161,53 +139,8 @@ class TimelineState {
     deleteAnnotation(eventId) {
         if (!this.#annotations.has(eventId)) return false;
         this.#annotations.delete(eventId);
-        bus.emit('annotation:deleted', eventId);
+        bus.emit(EVENTS.ANNOTATION_DELETED, eventId);
         return true;
-    }
-
-    /**
-     * Update WebSocket connection status. No-ops if the value hasn't changed.
-     * Emits `connection:changed` with the boolean.
-     *
-     * @param {boolean} connected - Whether the WebSocket is currently connected
-     */
-    setConnected(connected) {
-        sessionState.setConnected(connected);
-    }
-
-    /**
-     * Update sync lifecycle state. No-ops if unchanged.
-     * Emits `syncstatus:changed` with the new status.
-     *
-     * @param {string} status - One of connected, reconnecting, rejoining, failed, disconnected
-     */
-    setSyncStatus(status) {
-        sessionState.setSyncStatus(status);
-    }
-
-    /**
-     * Store a user-visible error message.
-     * Emits `error:changed`.
-     *
-     * @param {string} message - Error text for the UI
-     */
-    setLastError(message) {
-        sessionState.setLastError(message);
-    }
-
-    /** Clear the current user-visible error message. */
-    clearLastError() {
-        sessionState.clearLastError();
-    }
-
-    /**
-     * Update the connected user count. No-ops if the value hasn't changed.
-     * Emits `usercount:changed` with the count.
-     *
-     * @param {number} count - Number of connected users
-     */
-    setUserCount(count) {
-        sessionState.setUserCount(count);
     }
 
     /**
@@ -220,7 +153,7 @@ class TimelineState {
         if (JSON.stringify(this.#timelines) === JSON.stringify(timelines)) return;
         this.#timelines = timelines;
         this.#updateCurrentTimelineCache();
-        bus.emit('timelines:changed', timelines);
+        bus.emit(EVENTS.TIMELINES_CHANGED, timelines);
     }
 
     /**
@@ -232,7 +165,7 @@ class TimelineState {
     addTimeline(timeline) {
         this.#timelines.push(timeline);
         this.#updateCurrentTimelineCache();
-        bus.emit('timeline:created', timeline);
+        bus.emit(EVENTS.TIMELINE_CREATED, timeline);
     }
 
     /**
@@ -247,7 +180,7 @@ class TimelineState {
         if (index === -1) return;
         this.#timelines[index] = {...this.#timelines[index], ...updates};
         this.#updateCurrentTimelineCache();
-        bus.emit('timeline:updated', this.#timelines[index]);
+        bus.emit(EVENTS.TIMELINE_UPDATED, this.#timelines[index]);
     }
 
     /**
@@ -264,7 +197,7 @@ class TimelineState {
             this.#currentTimelineId = null;
         }
         this.#updateCurrentTimelineCache();
-        bus.emit('timeline:deleted', id);
+        bus.emit(EVENTS.TIMELINE_DELETED, id);
     }
 
     /**
@@ -276,7 +209,7 @@ class TimelineState {
     setCurrentTimeline(timelineId) {
         this.#currentTimelineId = timelineId;
         this.#updateCurrentTimelineCache();
-        bus.emit('timeline:joined', timelineId);
+        bus.emit(EVENTS.TIMELINE_JOINED, timelineId);
     }
 
     #updateCurrentTimelineCache() {
@@ -291,20 +224,8 @@ class TimelineState {
      */
     clearForTimelineSwitch() {
         this.#events = [];
-        this.#hostRegistry = null;
-        this.#connections = [];
         this.#annotations = new Map();
-    }
-
-    /** Rebuild host registry and connections from the current event list. */
-    #rebuild() {
-        if (this.#events.length > 0) {
-            this.#hostRegistry = buildHostRegistry(this.#events);
-            this.#connections = identifyConnections(this.#events, this.#hostRegistry);
-        } else {
-            this.#hostRegistry = null;
-            this.#connections = [];
-        }
+        invalidateTimelineSelectors();
     }
 
 }

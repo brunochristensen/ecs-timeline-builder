@@ -6,17 +6,18 @@ import assert from 'node:assert';
 
 import { state } from '../js/state.js';
 import bus from '../js/event-bus.js';
+import { sessionState } from '../js/stores/session-store.js';
 
 describe('TimelineState', () => {
 
     beforeEach(() => {
         state.clear();
-        state.setConnected(false);
-        state.setSyncStatus('disconnected');
-        state.clearLastError();
+        sessionState.setConnected(false);
+        sessionState.setSyncStatus('disconnected');
+        sessionState.clearLastError();
         state.setTimelines([]);
         state.setCurrentTimeline(null);
-        state.setUserCount(0);
+        sessionState.setUserCount(0);
         // Remove any leftover listeners from previous tests
     });
 
@@ -314,12 +315,12 @@ describe('TimelineState', () => {
             const listener = (val) => { received = val; };
             bus.on('connection:changed', listener);
 
-            state.setConnected(true);
-            assert.strictEqual(state.connected, true);
+            sessionState.setConnected(true);
+            assert.strictEqual(sessionState.connected, true);
             assert.strictEqual(received, true);
 
-            state.setConnected(false);
-            assert.strictEqual(state.connected, false);
+            sessionState.setConnected(false);
+            assert.strictEqual(sessionState.connected, false);
             assert.strictEqual(received, false);
 
             bus.off('connection:changed', listener);
@@ -330,8 +331,8 @@ describe('TimelineState', () => {
             const listener = (val) => { received = val; };
             bus.on('usercount:changed', listener);
 
-            state.setUserCount(5);
-            assert.strictEqual(state.userCount, 5);
+            sessionState.setUserCount(5);
+            assert.strictEqual(sessionState.userCount, 5);
             assert.strictEqual(received, 5);
 
             bus.off('usercount:changed', listener);
@@ -346,9 +347,9 @@ describe('TimelineState', () => {
             const listener = (val) => { received = val; };
             bus.on('syncstatus:changed', listener);
 
-            state.setSyncStatus('reconnecting');
+            sessionState.setSyncStatus('reconnecting');
 
-            assert.strictEqual(state.syncStatus, 'reconnecting');
+            assert.strictEqual(sessionState.syncStatus, 'reconnecting');
             assert.strictEqual(received, 'reconnecting');
             bus.off('syncstatus:changed', listener);
         });
@@ -358,13 +359,13 @@ describe('TimelineState', () => {
             const listener = (val) => { received = val; };
             bus.on('error:changed', listener);
 
-            state.setLastError('Sync failed');
+            sessionState.setLastError('Sync failed');
 
-            assert.strictEqual(state.lastError, 'Sync failed');
+            assert.strictEqual(sessionState.lastError, 'Sync failed');
             assert.strictEqual(received, 'Sync failed');
 
-            state.clearLastError();
-            assert.strictEqual(state.lastError, '');
+            sessionState.clearLastError();
+            assert.strictEqual(sessionState.lastError, '');
             bus.off('error:changed', listener);
         });
     });

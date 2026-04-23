@@ -6,11 +6,15 @@
 
 import express from 'express';
 import http from 'http';
-import WebSocket, { WebSocketServer } from 'ws';
+import { WebSocketServer } from 'ws';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { TimelineManager } from './server/timeline-manager.js';
 import { createRoomManager } from './server/websocket/room-manager.js';
+import { createMessageRouter } from './server/websocket/message-router.js';
+import { sendJson } from './server/websocket/respond.js';
+import { startHeartbeat } from './server/websocket/heartbeat.js';
+import { WS_MESSAGE_TYPES } from './shared/ws-protocol.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -28,13 +32,10 @@ const HEARTBEAT_TIMEOUT = 90000;
 const manager = new TimelineManager();
 const roomManager = createRoomManager(wss);
 const {
-    broadcastToRoom,
-    broadcastToAll,
-    joinRoom,
     leaveRoom,
-    clearTimelineRoom,
     roomCount
 } = roomManager;
+const routeMessage = createMessageRouter({manager, roomManager});
 
 // WebSocket connection handling
 wss.on('connection', (ws) => {
@@ -43,266 +44,12 @@ wss.on('connection', (ws) => {
     ws.lastPong = Date.now();
     ws.currentTimeline = null;
 
-    ws.send(JSON.stringify({
-        type: 'TIMELINES_LIST',
+    sendJson(ws, {
+        type: WS_MESSAGE_TYPES.TIMELINES_LIST,
         timelines: manager.listTimelines()
-    }));
-
-    ws.on('message', async (data) => {
-        try {
-            const message = JSON.parse(data);
-            if (!message.type || typeof message.type !== 'string') {
-                ws.send(JSON.stringify({ type: 'ERROR', message: 'Invalid message: missing type' }));
-                return;
-            }
-
-            switch (message.type) {
-                case 'LIST_TIMELINES': {
-                    ws.send(JSON.stringify({
-                        type: 'TIMELINES_LIST',
-                        timelines: manager.listTimelines()
-                    }));
-                    break;
-                }
-
-                case 'CREATE_TIMELINE': {
-                    const timeline = await manager.createTimeline(
-                        message.name,
-                        message.description || ''
-                    );
-                    broadcastToAll({
-                        type: 'TIMELINE_CREATED',
-                        timeline
-                    });
-                    break;
-                }
-
-                case 'UPDATE_TIMELINE': {
-                    if (!message.timelineId) {
-                        ws.send(JSON.stringify({ type: 'ERROR', message: 'UPDATE_TIMELINE: missing timelineId' }));
-                        break;
-                    }
-                    const updated = await manager.updateTimeline(message.timelineId, {
-                        name: message.name,
-                        description: message.description
-                    });
-                    if (updated) {
-                        broadcastToAll({
-                            type: 'TIMELINE_UPDATED',
-                            timeline: updated
-                        });
-                    }
-                    break;
-                }
-
-                case 'DELETE_TIMELINE': {
-                    if (!message.timelineId) {
-                        ws.send(JSON.stringify({ type: 'ERROR', message: 'DELETE_TIMELINE: missing timelineId' }));
-                        break;
-                    }
-                    const deleted = await manager.deleteTimeline(message.timelineId);
-                    if (deleted) {
-                        clearTimelineRoom(message.timelineId);
-                        broadcastToAll({
-                            type: 'TIMELINE_DELETED',
-                            timelineId: message.timelineId
-                        });
-                    }
-                    break;
-                }
-
-                case 'JOIN_TIMELINE': {
-                    if (!message.timelineId) {
-                        ws.send(JSON.stringify({ type: 'ERROR', message: 'JOIN_TIMELINE: missing timelineId' }));
-                        break;
-                    }
-                    const store = await manager.getStore(message.timelineId);
-                    if (!store) {
-                        ws.send(JSON.stringify({
-                            type: 'ERROR',
-                            message: 'Timeline not found'
-                        }));
-                        break;
-                    }
-                    const userCount = joinRoom(ws, message.timelineId);
-                    ws.send(JSON.stringify({
-                        type: 'JOINED_TIMELINE',
-                        timelineId: message.timelineId,
-                        events: store.getAll(),
-                        annotations: store.getAnnotations(),
-                        userCount
-                    }));
-                    break;
-                }
-
-                case 'LEAVE_TIMELINE': {
-                    if (ws.currentTimeline) {
-                        const timelineId = ws.currentTimeline;
-                        leaveRoom(ws, timelineId);
-                        ws.send(JSON.stringify({
-                            type: 'LEFT_TIMELINE',
-                            timelineId
-                        }));
-                    }
-                    break;
-                }
-
-                case 'ADD_EVENTS': {
-                    if (!ws.currentTimeline) {
-                        ws.send(JSON.stringify({ type: 'ERROR', message: 'ADD_EVENTS: not in a timeline' }));
-                        break;
-                    }
-                    if (!Array.isArray(message.events)) {
-                        ws.send(JSON.stringify({ type: 'ERROR', message: 'ADD_EVENTS: events must be an array' }));
-                        break;
-                    }
-                    const validEvents = message.events.filter(e => e && typeof e === 'object');
-                    if (validEvents.length === 0) {
-                        ws.send(JSON.stringify({ type: 'ERROR', message: 'ADD_EVENTS: no valid event objects' }));
-                        break;
-                    }
-                    const store = await manager.getStore(ws.currentTimeline);
-                    if (!store) break;
-
-                    const result = store.addEvents(validEvents);
-                    if (result.added.length > 0) {
-                        manager.markDirty(ws.currentTimeline);
-                        broadcastToRoom(ws.currentTimeline, {
-                            type: 'EVENTS_ADDED',
-                            events: result.added
-                        }, ws);
-                    }
-                    ws.send(JSON.stringify({
-                        type: 'ADD_CONFIRMED',
-                        count: result.added.length,
-                        duplicates: result.duplicates
-                    }));
-                    break;
-                }
-
-                case 'DELETE_EVENT': {
-                    if (!ws.currentTimeline) {
-                        ws.send(JSON.stringify({ type: 'ERROR', message: 'DELETE_EVENT: not in a timeline' }));
-                        break;
-                    }
-                    if (!message.eventId || typeof message.eventId !== 'string') {
-                        ws.send(JSON.stringify({ type: 'ERROR', message: 'DELETE_EVENT: invalid eventId' }));
-                        break;
-                    }
-                    const store = await manager.getStore(ws.currentTimeline);
-                    if (!store) break;
-
-                    const removed = store.deleteEvent(message.eventId);
-                    if (removed) {
-                        manager.markDirty(ws.currentTimeline);
-                        broadcastToRoom(ws.currentTimeline, {
-                            type: 'EVENT_DELETED',
-                            eventId: message.eventId
-                        });
-                    }
-                    break;
-                }
-
-                case 'CLEAR': {
-                    if (!ws.currentTimeline) {
-                        ws.send(JSON.stringify({ type: 'ERROR', message: 'CLEAR: not in a timeline' }));
-                        break;
-                    }
-                    const store = await manager.getStore(ws.currentTimeline);
-                    if (!store) break;
-
-                    store.clear();
-                    manager.markDirty(ws.currentTimeline);
-                    broadcastToRoom(ws.currentTimeline, { type: 'CLEARED' });
-                    break;
-                }
-
-                case 'ANNOTATE_EVENT': {
-                    if (!ws.currentTimeline) {
-                        ws.send(JSON.stringify({ type: 'ERROR', message: 'ANNOTATE_EVENT: not in a timeline' }));
-                        break;
-                    }
-                    if (!message.eventId || typeof message.eventId !== 'string') {
-                        ws.send(JSON.stringify({ type: 'ERROR', message: 'ANNOTATE_EVENT: invalid eventId' }));
-                        break;
-                    }
-                    const store = await manager.getStore(ws.currentTimeline);
-                    if (!store) break;
-
-                    const annotation = store.setAnnotation(message.eventId, {
-                        comment: message.comment,
-                        mitreTactic: message.mitreTactic,
-                        mitreTechnique: message.mitreTechnique
-                    });
-                    manager.markDirty(ws.currentTimeline);
-                    broadcastToRoom(ws.currentTimeline, {
-                        type: 'ANNOTATION_UPDATED',
-                        eventId: message.eventId,
-                        annotation
-                    });
-                    break;
-                }
-
-                case 'DELETE_ANNOTATION': {
-                    if (!ws.currentTimeline) {
-                        ws.send(JSON.stringify({ type: 'ERROR', message: 'DELETE_ANNOTATION: not in a timeline' }));
-                        break;
-                    }
-                    if (!message.eventId || typeof message.eventId !== 'string') {
-                        ws.send(JSON.stringify({ type: 'ERROR', message: 'DELETE_ANNOTATION: invalid eventId' }));
-                        break;
-                    }
-                    const store = await manager.getStore(ws.currentTimeline);
-                    if (!store) break;
-
-                    if (store.deleteAnnotation(message.eventId)) {
-                        manager.markDirty(ws.currentTimeline);
-                        broadcastToRoom(ws.currentTimeline, {
-                            type: 'ANNOTATION_DELETED',
-                            eventId: message.eventId
-                        });
-                    }
-                    break;
-                }
-
-                case 'REQUEST_SYNC': {
-                    if (!ws.currentTimeline) {
-                        ws.send(JSON.stringify({
-                            type: 'SYNC',
-                            events: [],
-                            annotations: {}
-                        }));
-                        break;
-                    }
-                    const store = await manager.getStore(ws.currentTimeline);
-                    ws.send(JSON.stringify({
-                        type: 'SYNC',
-                        events: store ? store.getAll() : [],
-                        annotations: store ? store.getAnnotations() : {}
-                    }));
-                    break;
-                }
-
-                case 'PONG': {
-                    ws.lastPong = Date.now();
-                    break;
-                }
-
-                default:
-                    console.warn('Unknown message type:', message.type);
-                    ws.send(JSON.stringify({
-                        type: 'ERROR',
-                        message: `Unknown message type: ${message.type}`
-                    }));
-            }
-        } catch (error) {
-            console.error('Error processing message:', error.message);
-            ws.send(JSON.stringify({
-                type: 'ERROR',
-                message: `Failed to process message: ${error.message}`
-            }));
-        }
     });
+
+    ws.on('message', async (data) => routeMessage(ws, data));
 
     ws.on('close', () => {
         console.log('Client disconnected. Total clients:', wss.clients.size);
@@ -365,24 +112,12 @@ setInterval(async () => {
     }
 }, SAVE_INTERVAL);
 
-// Heartbeat: ping all clients, terminate stale connections
-setInterval(() => {
-    const now = Date.now();
-    wss.clients.forEach(client => {
-        if (client.readyState !== WebSocket.OPEN) return;
-
-        if (now - client.lastPong > HEARTBEAT_TIMEOUT) {
-            console.log('Terminating stale client (no pong received)');
-            if (client.currentTimeline) {
-                leaveRoom(client, client.currentTimeline);
-            }
-            client.terminate();
-            return;
-        }
-
-        client.send(JSON.stringify({ type: 'PING' }));
-    });
-}, HEARTBEAT_INTERVAL);
+startHeartbeat({
+    wss,
+    heartbeatTimeout: HEARTBEAT_TIMEOUT,
+    heartbeatInterval: HEARTBEAT_INTERVAL,
+    leaveRoom
+});
 
 // Save on shutdown
 async function shutdown() {

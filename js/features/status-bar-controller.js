@@ -1,4 +1,5 @@
 import bus from '../event-bus.js';
+import {EVENTS} from '../events.js';
 import {state} from '../state.js';
 import {sessionState} from '../stores/session-store.js';
 
@@ -122,20 +123,20 @@ export function initStatusBarController({onSelectTimeline, onRetryConnection}) {
         statusRetryBtn.addEventListener('click', () => onRetryConnection());
     }
 
-    bus.on('connection:changed', (connected) => {
+    bus.on(EVENTS.CONNECTION_CHANGED, (connected) => {
         if (!connected) {
             updateUserCount('--');
         }
     });
-    bus.on('usercount:changed', updateUserCount);
-    bus.on('syncstatus:changed', updateSyncStatus);
-    bus.on('error:changed', updateErrorBanner);
-    bus.on('timeline:joined', updateTimelineDisplay);
-    bus.on('timeline:updated', updateTimelineDisplay);
-    bus.on('timeline:deleted', updateTimelineDisplay);
+    bus.on(EVENTS.USERCOUNT_CHANGED, updateUserCount);
+    bus.on(EVENTS.SYNCSTATUS_CHANGED, updateSyncStatus);
+    bus.on(EVENTS.ERROR_CHANGED, updateErrorBanner);
+    bus.on(EVENTS.TIMELINE_JOINED, updateTimelineDisplay);
+    bus.on(EVENTS.TIMELINE_UPDATED, updateTimelineDisplay);
+    bus.on(EVENTS.TIMELINE_DELETED, updateTimelineDisplay);
 
     updateTimelineDisplay();
     updateSyncStatus();
     updateErrorBanner();
-    updateUserCount(state.userCount > 0 ? state.userCount : '--');
+    updateUserCount(sessionState.userCount > 0 ? sessionState.userCount : '--');
 }

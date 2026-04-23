@@ -22,6 +22,20 @@ class TestClient {
     }
 
     async connect() {
+        this.ws.on('message', (data) => {
+            const message = JSON.parse(data.toString());
+            const waiterIndex = this.#waiters.findIndex(waiter => waiter.type === message.type && waiter.predicate(message));
+
+            if (waiterIndex >= 0) {
+                const [waiter] = this.#waiters.splice(waiterIndex, 1);
+                clearTimeout(waiter.timeoutId);
+                waiter.resolve(message);
+                return;
+            }
+
+            this.#queue.push(message);
+        });
+
         await new Promise((resolve, reject) => {
             const onOpen = () => {
                 cleanup();
@@ -38,20 +52,6 @@ class TestClient {
 
             this.ws.on('open', onOpen);
             this.ws.on('error', onError);
-        });
-
-        this.ws.on('message', (data) => {
-            const message = JSON.parse(data.toString());
-            const waiterIndex = this.#waiters.findIndex(waiter => waiter.type === message.type && waiter.predicate(message));
-
-            if (waiterIndex >= 0) {
-                const [waiter] = this.#waiters.splice(waiterIndex, 1);
-                clearTimeout(waiter.timeoutId);
-                waiter.resolve(message);
-                return;
-            }
-
-            this.#queue.push(message);
         });
     }
 

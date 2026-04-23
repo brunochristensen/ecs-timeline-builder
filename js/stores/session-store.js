@@ -1,4 +1,5 @@
 import bus from '../event-bus.js';
+import {EVENTS} from '../events.js';
 
 /**
  * Client-side session store for transport and sync lifecycle state.
@@ -29,19 +30,19 @@ class SessionStore {
     setConnected(connected) {
         if (this.#connected === connected) return;
         this.#connected = connected;
-        bus.emit('connection:changed', connected);
+        bus.emit(EVENTS.CONNECTION_CHANGED, connected);
     }
 
     setSyncStatus(status) {
         if (this.#syncStatus === status) return;
         this.#syncStatus = status;
-        bus.emit('syncstatus:changed', status);
+        bus.emit(EVENTS.SYNCSTATUS_CHANGED, status);
     }
 
     setLastError(message) {
         if (this.#lastError === message) return;
         this.#lastError = message;
-        bus.emit('error:changed', message);
+        bus.emit(EVENTS.ERROR_CHANGED, message);
     }
 
     clearLastError() {
@@ -51,7 +52,7 @@ class SessionStore {
     setUserCount(count) {
         if (this.#userCount === count) return;
         this.#userCount = count;
-        bus.emit('usercount:changed', count);
+        bus.emit(EVENTS.USERCOUNT_CHANGED, count);
     }
 }
 

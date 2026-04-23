@@ -1,4 +1,5 @@
 import bus from './event-bus.js';
+import {EVENTS} from './events.js';
 import {state} from './state.js';
 import {TACTICS, getTacticName} from './mitre.js';
 import {escapeHtml} from './utils.js';
@@ -117,12 +118,12 @@ function render() {
  * Called automatically on module load (self-wiring).
  */
 function init() {
-    bus.on('events:added', invalidateEventsCache);
-    bus.on('events:synced', invalidateEventsCache);
-    bus.on('event:deleted', invalidateEventsCache);
-    bus.on('events:cleared', invalidateEventsCache);
-    bus.on('annotation:updated', render);
-    bus.on('annotation:deleted', render);
+    bus.on(EVENTS.EVENTS_ADDED, invalidateEventsCache);
+    bus.on(EVENTS.EVENTS_SYNCED, invalidateEventsCache);
+    bus.on(EVENTS.EVENT_DELETED, invalidateEventsCache);
+    bus.on(EVENTS.EVENTS_CLEARED, invalidateEventsCache);
+    bus.on(EVENTS.ANNOTATION_UPDATED, render);
+    bus.on(EVENTS.ANNOTATION_DELETED, render);
     render();
 }
 

@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, it } from 'node:test';
 import assert from 'node:assert';
 import { state } from '../js/state.js';
+import { sessionState } from '../js/stores/session-store.js';
 
 class FakeWebSocket {
     static OPEN = 1;
@@ -49,12 +50,12 @@ const originalSetTimeout = global.setTimeout;
 
 function resetState() {
     state.clear();
-    state.setConnected(false);
-    state.setSyncStatus('disconnected');
-    state.clearLastError();
+    sessionState.setConnected(false);
+    sessionState.setSyncStatus('disconnected');
+    sessionState.clearLastError();
     state.setTimelines([]);
     state.setCurrentTimeline(null);
-    state.setUserCount(0);
+    sessionState.setUserCount(0);
 }
 
 beforeEach(() => {
@@ -88,8 +89,8 @@ describe('sync module reconnect behavior', () => {
         const socket = FakeWebSocket.instances[0];
         socket.emitOpen();
 
-        assert.strictEqual(state.connected, true);
-        assert.strictEqual(state.syncStatus, 'rejoining');
+        assert.strictEqual(sessionState.connected, true);
+        assert.strictEqual(sessionState.syncStatus, 'rejoining');
         assert.deepStrictEqual(socket.sent, [
             { type: 'JOIN_TIMELINE', timelineId: 'timeline-1' }
         ]);
@@ -113,15 +114,15 @@ describe('sync module reconnect behavior', () => {
 
         firstSocket.emitClose();
 
-        assert.strictEqual(state.connected, false);
-        assert.strictEqual(state.syncStatus, 'reconnecting');
+        assert.strictEqual(sessionState.connected, false);
+        assert.strictEqual(sessionState.syncStatus, 'reconnecting');
         assert.strictEqual(FakeWebSocket.instances.length, 2);
 
         const secondSocket = FakeWebSocket.instances[1];
         secondSocket.emitOpen();
 
-        assert.strictEqual(state.connected, true);
-        assert.strictEqual(state.syncStatus, 'rejoining');
+        assert.strictEqual(sessionState.connected, true);
+        assert.strictEqual(sessionState.syncStatus, 'rejoining');
         assert.deepStrictEqual(secondSocket.sent, [
             { type: 'JOIN_TIMELINE', timelineId: 'timeline-2' }
         ]);

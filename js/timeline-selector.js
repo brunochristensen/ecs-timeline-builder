@@ -4,6 +4,7 @@
  */
 
 import bus from './event-bus.js';
+import {EVENTS} from './events.js';
 import {state} from './state.js';
 import {joinTimeline, createTimeline, deleteTimeline} from './sync.js';
 import {escapeHtml} from './utils.js';
@@ -17,11 +18,11 @@ let selectorElement = null;
 function init() {
     createSelectorElement();
 
-    bus.on('timelines:changed', renderTimelineList);
-    bus.on('timeline:created', renderTimelineList);
-    bus.on('timeline:updated', renderTimelineList);
-    bus.on('timeline:deleted', renderTimelineList);
-    bus.on('timeline:joined', hideSelector);
+    bus.on(EVENTS.TIMELINES_CHANGED, renderTimelineList);
+    bus.on(EVENTS.TIMELINE_CREATED, renderTimelineList);
+    bus.on(EVENTS.TIMELINE_UPDATED, renderTimelineList);
+    bus.on(EVENTS.TIMELINE_DELETED, renderTimelineList);
+    bus.on(EVENTS.TIMELINE_JOINED, hideSelector);
 }
 
 /**

@@ -5,6 +5,7 @@
 
 import {state} from './state.js';
 import {sessionState} from './stores/session-store.js';
+import {WS_MESSAGE_TYPES} from '../shared/ws-protocol.js';
 
 const MAX_RECONNECT_ATTEMPTS = 10;
 const BASE_RECONNECT_DELAY_MS = 1000;
@@ -45,7 +46,7 @@ function connect() {
 
         if (state.currentTimelineId) {
             sessionState.setSyncStatus('rejoining');
-            send({type: 'JOIN_TIMELINE', timelineId: state.currentTimelineId});
+            send({type: WS_MESSAGE_TYPES.JOIN_TIMELINE, timelineId: state.currentTimelineId});
         } else {
             sessionState.setSyncStatus('connected');
         }
@@ -106,7 +107,7 @@ function attemptReconnect() {
  */
 function handleMessage(message) {
     switch (message.type) {
-        case 'TIMELINES_LIST':
+        case WS_MESSAGE_TYPES.TIMELINES_LIST:
             console.log(`Received ${message.timelines.length} timeline(s)`);
             state.setTimelines(message.timelines);
             if (!state.currentTimelineId) {
@@ -114,22 +115,22 @@ function handleMessage(message) {
             }
             break;
 
-        case 'TIMELINE_CREATED':
+        case WS_MESSAGE_TYPES.TIMELINE_CREATED:
             console.log(`Timeline created: ${message.timeline.name}`);
             state.addTimeline(message.timeline);
             break;
 
-        case 'TIMELINE_UPDATED':
+        case WS_MESSAGE_TYPES.TIMELINE_UPDATED:
             console.log(`Timeline updated: ${message.timeline.name}`);
             state.updateTimelineMeta(message.timeline.id, message.timeline);
             break;
 
-        case 'TIMELINE_DELETED':
+        case WS_MESSAGE_TYPES.TIMELINE_DELETED:
             console.log(`Timeline deleted: ${message.timelineId}`);
             state.removeTimeline(message.timelineId);
             break;
 
-        case 'JOINED_TIMELINE':
+        case WS_MESSAGE_TYPES.JOINED_TIMELINE:
             console.log(`Joined timeline: ${message.timelineId} (${message.events.length} events)`);
             state.clearForTimelineSwitch();
             state.setCurrentTimeline(message.timelineId);
@@ -138,53 +139,53 @@ function handleMessage(message) {
             sessionState.setSyncStatus('connected');
             break;
 
-        case 'LEFT_TIMELINE':
+        case WS_MESSAGE_TYPES.LEFT_TIMELINE:
             console.log(`Left timeline: ${message.timelineId}`);
             state.clearForTimelineSwitch();
             sessionState.setSyncStatus('connected');
             break;
 
-        case 'SYNC':
+        case WS_MESSAGE_TYPES.SYNC:
             console.log(`Received sync: ${message.events.length} events`);
             state.setEvents(message.events, message.annotations || {});
             break;
 
-        case 'EVENTS_ADDED':
+        case WS_MESSAGE_TYPES.EVENTS_ADDED:
             console.log(`Events added by another user: ${message.events.length}`);
             state.addEvents(message.events);
             break;
 
-        case 'ADD_CONFIRMED':
+        case WS_MESSAGE_TYPES.ADD_CONFIRMED:
             console.log(`Add confirmed: ${message.count} added, ${message.duplicates} duplicates`);
             break;
 
-        case 'EVENT_DELETED':
+        case WS_MESSAGE_TYPES.EVENT_DELETED:
             console.log(`Event deleted: ${message.eventId}`);
             state.deleteEvent(message.eventId);
             break;
 
-        case 'CLEARED':
+        case WS_MESSAGE_TYPES.CLEARED:
             console.log('Timeline cleared');
             state.clear();
             break;
 
-        case 'USER_COUNT':
+        case WS_MESSAGE_TYPES.USER_COUNT:
             sessionState.setUserCount(message.count);
             break;
 
-        case 'ANNOTATION_UPDATED':
+        case WS_MESSAGE_TYPES.ANNOTATION_UPDATED:
             state.setAnnotation(message.eventId, message.annotation);
             break;
 
-        case 'ANNOTATION_DELETED':
+        case WS_MESSAGE_TYPES.ANNOTATION_DELETED:
             state.deleteAnnotation(message.eventId);
             break;
 
-        case 'PING':
-            send({type: 'PONG'});
+        case WS_MESSAGE_TYPES.PING:
+            send({type: WS_MESSAGE_TYPES.PONG});
             break;
 
-        case 'ERROR':
+        case WS_MESSAGE_TYPES.ERROR:
             console.error('Server error:', message.message);
             sessionState.setLastError(message.message || 'Server error');
             break;
@@ -215,7 +216,7 @@ function send(message) {
  * @returns {boolean} True if message was sent, false if not connected
  */
 export function sendEventsToServer(rawEvents) {
-    return send({type: 'ADD_EVENTS', events: rawEvents});
+    return send({type: WS_MESSAGE_TYPES.ADD_EVENTS, events: rawEvents});
 }
 
 /**
@@ -225,7 +226,7 @@ export function sendEventsToServer(rawEvents) {
  * @returns {boolean} True if message was sent, false if not connected
  */
 export function sendDeleteToServer(eventId) {
-    return send({type: 'DELETE_EVENT', eventId});
+    return send({type: WS_MESSAGE_TYPES.DELETE_EVENT, eventId});
 }
 
 /**
@@ -234,7 +235,7 @@ export function sendDeleteToServer(eventId) {
  * @returns {boolean} True if message was sent, false if not connected
  */
 export function sendClearToServer() {
-    return send({type: 'CLEAR'});
+    return send({type: WS_MESSAGE_TYPES.CLEAR});
 }
 
 /**
@@ -246,7 +247,7 @@ export function sendClearToServer() {
  */
 export function sendAnnotationToServer(eventId, annotation) {
     return send({
-        type: 'ANNOTATE_EVENT',
+        type: WS_MESSAGE_TYPES.ANNOTATE_EVENT,
         eventId,
         comment: annotation.comment || '',
         mitreTactic: annotation.mitreTactic || '',
@@ -261,7 +262,7 @@ export function sendAnnotationToServer(eventId, annotation) {
  * @returns {boolean} True if message was sent
  */
 export function sendDeleteAnnotationToServer(eventId) {
-    return send({type: 'DELETE_ANNOTATION', eventId});
+    return send({type: WS_MESSAGE_TYPES.DELETE_ANNOTATION, eventId});
 }
 
 /**
@@ -279,7 +280,7 @@ export function isConnected() {
  * @returns {boolean} True if message was sent
  */
 export function requestTimelineList() {
-    return send({type: 'LIST_TIMELINES'});
+    return send({type: WS_MESSAGE_TYPES.LIST_TIMELINES});
 }
 
 /**
@@ -290,7 +291,7 @@ export function requestTimelineList() {
  * @returns {boolean} True if message was sent
  */
 export function createTimeline(name, description = '') {
-    return send({type: 'CREATE_TIMELINE', name, description});
+    return send({type: WS_MESSAGE_TYPES.CREATE_TIMELINE, name, description});
 }
 
 /**
@@ -302,7 +303,7 @@ export function createTimeline(name, description = '') {
 export function joinTimeline(timelineId) {
     sessionState.clearLastError();
     sessionState.setSyncStatus('rejoining');
-    return send({type: 'JOIN_TIMELINE', timelineId});
+    return send({type: WS_MESSAGE_TYPES.JOIN_TIMELINE, timelineId});
 }
 
 /**
@@ -311,7 +312,7 @@ export function joinTimeline(timelineId) {
  * @returns {boolean} True if message was sent
  */
 export function leaveTimeline() {
-    return send({type: 'LEAVE_TIMELINE'});
+    return send({type: WS_MESSAGE_TYPES.LEAVE_TIMELINE});
 }
 
 /**
@@ -321,7 +322,7 @@ export function leaveTimeline() {
  * @returns {boolean} True if message was sent
  */
 export function deleteTimeline(timelineId) {
-    return send({type: 'DELETE_TIMELINE', timelineId});
+    return send({type: WS_MESSAGE_TYPES.DELETE_TIMELINE, timelineId});
 }
 
 /**
@@ -332,7 +333,7 @@ export function deleteTimeline(timelineId) {
  * @returns {boolean} True if message was sent
  */
 export function updateTimeline(timelineId, updates) {
-    return send({type: 'UPDATE_TIMELINE', timelineId, ...updates});
+    return send({type: WS_MESSAGE_TYPES.UPDATE_TIMELINE, timelineId, ...updates});
 }
 
 /**

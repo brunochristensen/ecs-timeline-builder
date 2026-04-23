@@ -1,4 +1,5 @@
 import bus from '../event-bus.js';
+import {EVENTS} from '../events.js';
 import {state} from '../state.js';
 import {isConnected, sendEventsToServer} from '../sync.js';
 
@@ -122,7 +123,7 @@ export function initImportController() {
         }
     });
 
-    bus.on('events:cleared', () => {
+    bus.on(EVENTS.EVENTS_CLEARED, () => {
         jsonInput.value = '';
     });
 }

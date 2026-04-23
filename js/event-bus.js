@@ -5,6 +5,7 @@
  */
 
 import {EventEmitter} from './event-emitter.js';
+import {EVENTS} from './events.js';
 
 /**
  * Global event bus for decoupled module communication.
@@ -29,3 +30,4 @@ import {EventEmitter} from './event-emitter.js';
 const bus = new EventEmitter();
 
 export default bus;
+export {EVENTS};

@@ -1,4 +1,5 @@
 import bus from '../event-bus.js';
+import {EVENTS} from '../events.js';
 import {renderEventDetailPanel, renderMitreOptions} from '../detail-renderer.js';
 import {
     isConnected,
@@ -104,8 +105,8 @@ export function initDetailPanelController() {
         }
     });
 
-    bus.on('annotation:updated', refreshDetailIfOpen);
-    bus.on('annotation:deleted', refreshDetailIfOpen);
-    bus.on('event:deleted', () => hideEventDetail());
-    bus.on('events:cleared', () => hideEventDetail());
+    bus.on(EVENTS.ANNOTATION_UPDATED, refreshDetailIfOpen);
+    bus.on(EVENTS.ANNOTATION_DELETED, refreshDetailIfOpen);
+    bus.on(EVENTS.EVENT_DELETED, () => hideEventDetail());
+    bus.on(EVENTS.EVENTS_CLEARED, () => hideEventDetail());
 }

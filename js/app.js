@@ -1,4 +1,5 @@
 import bus from "./event-bus.js";
+import {EVENTS} from "./events.js";
 import {
     initTimelineVisualization,
     renderTimelineVisualization,
@@ -40,7 +41,7 @@ function init() {
     setupHeaderControls();
     subscribeToState();
 
-    bus.on('timelines:changed', handleTimelineListReceived);
+    bus.on(EVENTS.TIMELINES_CHANGED, handleTimelineListReceived);
 }
 
 function handleTimelineListReceived() {
@@ -76,20 +77,20 @@ function refreshTimelineUi() {
 }
 
 function subscribeToState() {
-    bus.on('events:added', refreshTimelineUi);
-    bus.on('events:synced', refreshTimelineUi);
-    bus.on('event:deleted', refreshTimelineUi);
-    bus.on('events:cleared', refreshTimelineUi);
+    bus.on(EVENTS.EVENTS_ADDED, refreshTimelineUi);
+    bus.on(EVENTS.EVENTS_SYNCED, refreshTimelineUi);
+    bus.on(EVENTS.EVENT_DELETED, refreshTimelineUi);
+    bus.on(EVENTS.EVENTS_CLEARED, refreshTimelineUi);
 
     const onAnnotationChange = () => {
         if (state.events.length > 0) {
             renderTimelineVisualization(state.events, state.hostRegistry, state.connections, state.annotations);
         }
     };
-    bus.on('annotation:updated', onAnnotationChange);
-    bus.on('annotation:deleted', onAnnotationChange);
+    bus.on(EVENTS.ANNOTATION_UPDATED, onAnnotationChange);
+    bus.on(EVENTS.ANNOTATION_DELETED, onAnnotationChange);
 
-    bus.on('timeline:deleted', (deletedId) => {
+    bus.on(EVENTS.TIMELINE_DELETED, (deletedId) => {
         if (state.currentTimelineId === deletedId || !state.currentTimelineId) {
             showSelector();
         }

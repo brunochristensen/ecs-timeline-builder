@@ -1,4 +1,5 @@
 import WebSocket from 'ws';
+import {WS_MESSAGE_TYPES} from '../../shared/ws-protocol.js';
 
 /**
  * Build helpers for room membership and room-scoped broadcasts.
@@ -44,7 +45,7 @@ export function createRoomManager(wss) {
         ws.currentTimeline = timelineId;
 
         broadcastToRoom(timelineId, {
-            type: 'USER_COUNT',
+            type: WS_MESSAGE_TYPES.USER_COUNT,
             count: room.size
         });
 
@@ -56,7 +57,7 @@ export function createRoomManager(wss) {
         if (room) {
             room.delete(ws);
             broadcastToRoom(timelineId, {
-                type: 'USER_COUNT',
+                type: WS_MESSAGE_TYPES.USER_COUNT,
                 count: room.size
             });
 

@@ -1,0 +1,20 @@
+export const EVENTS = {
+    EVENTS_ADDED: 'events:added',
+    EVENTS_SYNCED: 'events:synced',
+    EVENT_DELETED: 'event:deleted',
+    EVENTS_CLEARED: 'events:cleared',
+    ANNOTATION_UPDATED: 'annotation:updated',
+    ANNOTATION_DELETED: 'annotation:deleted',
+    CONNECTION_CHANGED: 'connection:changed',
+    SYNCSTATUS_CHANGED: 'syncstatus:changed',
+    ERROR_CHANGED: 'error:changed',
+    USERCOUNT_CHANGED: 'usercount:changed',
+    TIMELINES_CHANGED: 'timelines:changed',
+    TIMELINE_CREATED: 'timeline:created',
+    TIMELINE_UPDATED: 'timeline:updated',
+    TIMELINE_DELETED: 'timeline:deleted',
+    TIMELINE_JOINED: 'timeline:joined',
+    TIMELINE_LEFT: 'timeline:left',
+    EVENT_SELECTED: 'event:selected',
+    UI_REFRESH: 'ui:refresh'
+};
