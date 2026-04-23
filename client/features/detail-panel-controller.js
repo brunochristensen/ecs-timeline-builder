@@ -2,29 +2,19 @@ import bus from '../event-bus.js';
 import {EVENTS} from '../events.js';
 import {renderEventDetailPanel, renderMitreOptions} from '../detail-renderer.js';
 import {
-    isTimelineReady,
+    requireTimelineReady,
     sendDeleteToServer,
     sendAnnotationToServer,
     sendDeleteAnnotationToServer
 } from '../sync.js';
 import {state} from '../state.js';
 import {TECHNIQUES} from '../mitre.js';
-import {sessionState} from '../stores/session-store.js';
 
 let eventDetail;
 let detailContent;
 let closeDetailBtn;
 let currentDetailEvent = null;
 let initialized = false;
-
-function requireTimelineReady(actionLabel) {
-    if (isTimelineReady()) {
-        return true;
-    }
-
-    sessionState.setLastError(`Cannot ${actionLabel} while timeline sync is not ready.`);
-    return false;
-}
 
 function hideEventDetail() {
     if (eventDetail) {

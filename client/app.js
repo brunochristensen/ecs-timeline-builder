@@ -9,9 +9,8 @@ import {
     clearTimelineVisualization
 } from "./timeline.js";
 import {formatDuration} from "./utils.js";
-import {sendClearToServer, joinTimeline, retryConnection, isTimelineReady} from "./sync.js";
+import {sendClearToServer, joinTimeline, retryConnection, requireTimelineReady} from "./sync.js";
 import {state} from "./state.js";
-import {sessionState} from "./stores/session-store.js";
 import {initStatusBarController, resetStatusStats, stampStatusSync, updateStatusStats} from "./features/status-bar-controller.js";
 import {initImportController} from "./features/import-controller.js";
 import {initDetailPanelController, showEventDetail} from "./features/detail-panel-controller.js";
@@ -178,12 +177,9 @@ function exportTimeline() {
 }
 
 function clearTimeline() {
-    if (isTimelineReady()) {
+    if (requireTimelineReady('clear the timeline')) {
         sendClearToServer();
-        return;
     }
-
-    sessionState.setLastError('Cannot clear the timeline while timeline sync is not ready.');
 }
 
 if (document.readyState === 'loading') {

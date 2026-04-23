@@ -286,6 +286,20 @@ export function isTimelineReady() {
 }
 
 /**
+ * Guards an action that requires timeline readiness. Sets an error if not ready.
+ *
+ * @param {string} actionLabel - Human-readable action name for the error message
+ * @returns {boolean} True if timeline is ready, false otherwise
+ */
+export function requireTimelineReady(actionLabel) {
+    if (isTimelineReady()) {
+        return true;
+    }
+    sessionState.setLastError(`Cannot ${actionLabel} while timeline sync is not ready.`);
+    return false;
+}
+
+/**
  * Requests the server to send the list of available timelines.
  *
  * @returns {boolean} True if message was sent

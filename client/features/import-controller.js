@@ -1,23 +1,13 @@
 import bus from '../event-bus.js';
 import {EVENTS} from '../events.js';
 import {state} from '../state.js';
-import {sessionState} from '../stores/session-store.js';
-import {isTimelineReady, sendEventsToServer} from '../sync.js';
+import {requireTimelineReady, sendEventsToServer} from '../sync.js';
 
 let dropZone;
 let fileInput;
 let jsonInput;
 let parseBtn;
 let initialized = false;
-
-function requireTimelineReady(actionLabel) {
-    if (isTimelineReady()) {
-        return true;
-    }
-
-    sessionState.setLastError(`Cannot ${actionLabel} while timeline sync is not ready.`);
-    return false;
-}
 
 async function handleFiles(files) {
     let allContent = '';
