@@ -1,0 +1,18 @@
+{
+  "timelines": [
+    {
+      "id": "demo-incident",
+      "name": "APT29 Simulation - Demo",
+      "description": "Sample incident: phishing to domain compromise",
+      "createdAt": "2026-04-21T14:00:00.000Z",
+      "updatedAt": "2026-04-21T14:30:00.000Z"
+    },
+    {
+      "id": "a4igzi9l",
+      "name": "test",
+      "description": "test",
+      "createdAt": "2026-04-22T15:13:22.194Z",
+      "updatedAt": "2026-04-22T15:13:22.194Z"
+    }
+  ]
+}

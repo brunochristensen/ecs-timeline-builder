@@ -74,7 +74,7 @@ export class EventStore {
      * @returns {Object}
      */
     getAnnotations() {
-        return this.#annotations;
+        return structuredClone(this.#annotations);
     }
 
     /**
@@ -91,7 +91,7 @@ export class EventStore {
      * @returns {Array} The events array
      */
     getAll() {
-        return this.#events;
+        return structuredClone(this.#events);
     }
 
     /**
@@ -110,7 +110,7 @@ export class EventStore {
      * @param {Object} [annotations={}] - Annotations to load
      */
     load(events, annotations = {}) {
-        this.#events = events;
-        this.#annotations = annotations;
+        this.#events = structuredClone(events);
+        this.#annotations = structuredClone(annotations);
     }
 }

@@ -1,16 +1,20 @@
 /**
  * ECS Timeline Builder - Server
  * Transport layer: Express HTTP + WebSocket message routing.
- * Delegates business logic to EventStore and persistence to file I/O module.
+ * Supports multiple concurrent timelines via TimelineManager.
  */
 
 import express from 'express';
 import http from 'http';
-import WebSocket, { WebSocketServer } from 'ws';
+import { WebSocketServer } from 'ws';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { EventStore } from './server/event-store.js';
-import { loadData, saveData } from './server/persistence.js';
+import { TimelineManager } from './server/timeline-manager.js';
+import { createRoomManager } from './server/websocket/room-manager.js';
+import { createMessageRouter } from './server/websocket/message-router.js';
+import { sendJson } from './server/websocket/respond.js';
+import { startHeartbeat } from './server/websocket/heartbeat.js';
+import { WS_MESSAGE_TYPES } from './shared/ws-protocol.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -20,168 +24,38 @@ const wss = new WebSocketServer({ server });
 
 // Config
 const PORT = process.env.PORT || 12345;
-const DATA_FILE = process.env.DATA_FILE || './data/timeline.json';
 const SAVE_INTERVAL = 30000;
 const HEARTBEAT_INTERVAL = 30000;
 const HEARTBEAT_TIMEOUT = 90000;
 
 // State
-const store = new EventStore();
-let isDirty = false;
-
-/**
- * Broadcast a message to all connected clients, optionally excluding one (the sender).
- * Serializes the payload once and sends the string to each client.
- *
- * @param {Object} message - Message object to serialize and broadcast
- * @param {WebSocket|null} [excludeWs=null] - Client to skip (typically the sender)
- */
-function broadcast(message, excludeWs = null) {
-    const msgString = JSON.stringify(message);
-    wss.clients.forEach(client => {
-        if (client !== excludeWs && client.readyState === WebSocket.OPEN) {
-            client.send(msgString);
-        }
-    });
-}
-
-/**
- * Builds a full-state SYNC message payload from the store.
- *
- * @returns {{ type: string, events: Array, annotations: Object }} SYNC message
- */
-function buildSyncMessage() {
-    return {
-        type: 'SYNC',
-        events: store.getAll(),
-        annotations: store.getAnnotations()
-    };
-}
+const manager = new TimelineManager();
+const roomManager = createRoomManager(wss);
+const {
+    leaveRoom,
+    roomCount
+} = roomManager;
+const routeMessage = createMessageRouter({manager, roomManager});
 
 // WebSocket connection handling
 wss.on('connection', (ws) => {
     console.log('Client connected. Total clients:', wss.clients.size);
 
-    // Track last pong for heartbeat
     ws.lastPong = Date.now();
+    ws.currentTimeline = null;
 
-    // Send current state to new client
-    ws.send(JSON.stringify(buildSyncMessage()));
-
-    // Broadcast user count update
-    broadcast({
-        type: 'USER_COUNT',
-        count: wss.clients.size
+    sendJson(ws, {
+        type: WS_MESSAGE_TYPES.TIMELINES_LIST,
+        timelines: manager.listTimelines()
     });
 
-    ws.on('message', (data) => {
-        try {
-            const message = JSON.parse(data);
-            if (!message.type || typeof message.type !== 'string') {
-                console.warn('Received message with missing or invalid type');
-                return;
-            }
-
-            switch (message.type) {
-                case 'ADD_EVENTS': {
-                    if (!Array.isArray(message.events)) {
-                        console.warn('ADD_EVENTS: missing or invalid events array');
-                        break;
-                    }
-                    const result = store.addEvents(message.events);
-                    if (result.added.length > 0) {
-                        isDirty = true;
-                        broadcast({
-                            type: 'EVENTS_ADDED',
-                            events: result.added
-                        }, ws);
-                    }
-                    ws.send(JSON.stringify({
-                        type: 'ADD_CONFIRMED',
-                        count: result.added.length,
-                        duplicates: result.duplicates
-                    }));
-                    break;
-                }
-
-                case 'DELETE_EVENT': {
-                    if (!message.eventId || typeof message.eventId !== 'string') {
-                        console.warn('DELETE_EVENT: missing or invalid eventId');
-                        break;
-                    }
-                    const removed = store.deleteEvent(message.eventId);
-                    if (removed) {
-                        isDirty = true;
-                        broadcast({ type: 'EVENT_DELETED', eventId: message.eventId });
-                    }
-                    break;
-                }
-
-                case 'CLEAR': {
-                    store.clear();
-                    isDirty = true;
-                    broadcast({ type: 'CLEARED' });
-                    break;
-                }
-
-                case 'ANNOTATE_EVENT': {
-                    if (!message.eventId || typeof message.eventId !== 'string') {
-                        console.warn('ANNOTATE_EVENT: missing or invalid eventId');
-                        break;
-                    }
-                    const annotation = store.setAnnotation(message.eventId, {
-                        comment: message.comment,
-                        mitreTactic: message.mitreTactic,
-                        mitreTechnique: message.mitreTechnique
-                    });
-                    isDirty = true;
-                    broadcast({
-                        type: 'ANNOTATION_UPDATED',
-                        eventId: message.eventId,
-                        annotation
-                    });
-                    break;
-                }
-
-                case 'DELETE_ANNOTATION': {
-                    if (!message.eventId || typeof message.eventId !== 'string') {
-                        console.warn('DELETE_ANNOTATION: missing or invalid eventId');
-                        break;
-                    }
-                    if (store.deleteAnnotation(message.eventId)) {
-                        isDirty = true;
-                        broadcast({
-                            type: 'ANNOTATION_DELETED',
-                            eventId: message.eventId
-                        });
-                    }
-                    break;
-                }
-
-                case 'REQUEST_SYNC': {
-                    ws.send(JSON.stringify(buildSyncMessage()));
-                    break;
-                }
-
-                case 'PONG': {
-                    ws.lastPong = Date.now();
-                    break;
-                }
-
-                default:
-                    console.warn('Unknown message type:', message.type);
-            }
-        } catch (error) {
-            console.error('Error processing message:', error.message);
-        }
-    });
+    ws.on('message', async (data) => routeMessage(ws, data));
 
     ws.on('close', () => {
         console.log('Client disconnected. Total clients:', wss.clients.size);
-        broadcast({
-            type: 'USER_COUNT',
-            count: wss.clients.size
-        });
+        if (ws.currentTimeline) {
+            leaveRoom(ws, ws.currentTimeline);
+        }
     });
 
     ws.on('error', (error) => {
@@ -195,12 +69,16 @@ app.use(express.static(path.join(__dirname)));
 // Health check endpoint
 app.get('/health', (req, res) => {
     const mem = process.memoryUsage();
+    const timelines = manager.listTimelines();
+    const loadedStores = manager.getLoadedStoreIds();
+
     res.json({
         status: 'ok',
         uptime: Math.floor(process.uptime()),
         clients: wss.clients.size,
-        events: store.length,
-        annotations: Object.keys(store.getAnnotations()).length,
+        timelines: timelines.length,
+        loadedStores: loadedStores.length,
+        rooms: roomCount(),
         memory: {
             heapUsedMB: Math.round(mem.heapUsed / 1024 / 1024),
             heapTotalMB: Math.round(mem.heapTotal / 1024 / 1024)
@@ -208,45 +86,43 @@ app.get('/health', (req, res) => {
     });
 });
 
-// API endpoint to get current state
-app.get('/api/events', (req, res) => {
+// API endpoint to list timelines
+app.get('/api/timelines', (req, res) => {
+    res.json(manager.listTimelines());
+});
+
+// API endpoint to get events for a specific timeline
+app.get('/api/timelines/:id/events', async (req, res) => {
+    const store = await manager.getStore(req.params.id);
+    if (!store) {
+        res.status(404).json({ error: 'Timeline not found' });
+        return;
+    }
     res.json(store.getAll());
 });
 
-// Load data on startup
-const loaded = await loadData(DATA_FILE);
-store.load(loaded.events, loaded.annotations);
+// Initialize and start
+await manager.initialize();
 
 // Auto-save interval
-setInterval(() => {
-    if (isDirty) {
-        isDirty = false;
-        saveData(DATA_FILE, store.getAll(), store.getAnnotations());
+setInterval(async () => {
+    const saved = await manager.saveAll();
+    if (saved > 0) {
+        console.log(`Auto-saved ${saved} timeline(s)`);
     }
 }, SAVE_INTERVAL);
 
-// Heartbeat: ping all clients, terminate stale connections
-setInterval(() => {
-    const now = Date.now();
-    wss.clients.forEach(client => {
-        if (client.readyState !== WebSocket.OPEN) return;
-
-        if (now - client.lastPong > HEARTBEAT_TIMEOUT) {
-            console.log('Terminating stale client (no pong received)');
-            client.terminate();
-            return;
-        }
-
-        client.send(JSON.stringify({ type: 'PING' }));
-    });
-}, HEARTBEAT_INTERVAL);
+startHeartbeat({
+    wss,
+    heartbeatTimeout: HEARTBEAT_TIMEOUT,
+    heartbeatInterval: HEARTBEAT_INTERVAL,
+    leaveRoom
+});
 
 // Save on shutdown
 async function shutdown() {
     console.log('\nShutting down...');
-    if (isDirty) {
-        await saveData(DATA_FILE, store.getAll(), store.getAnnotations());
-    }
+    await manager.saveAll();
     process.exit(0);
 }
 
@@ -256,5 +132,6 @@ process.on('SIGTERM', shutdown);
 // Start server
 server.listen(PORT, '0.0.0.0', () => {
     console.log(`ECS Timeline Builder server running on http://localhost:${PORT}`);
-    console.log(`Data file: ${path.resolve(DATA_FILE)}`);
+    console.log(`Timelines: ${manager.listTimelines().length}`);
 });
+

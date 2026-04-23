@@ -1,0 +1,149 @@
+import { afterEach, beforeEach, describe, it } from 'node:test';
+import assert from 'node:assert';
+import { state } from '../client/state.js';
+import { sessionState } from '../client/stores/session-store.js';
+
+class FakeWebSocket {
+    static OPEN = 1;
+    static CLOSED = 3;
+    static instances = [];
+
+    constructor(url) {
+        this.url = url;
+        this.readyState = FakeWebSocket.OPEN;
+        this.sent = [];
+        this.onopen = null;
+        this.onclose = null;
+        this.onmessage = null;
+        this.onerror = null;
+        FakeWebSocket.instances.push(this);
+    }
+
+    send(message) {
+        this.sent.push(JSON.parse(message));
+    }
+
+    close() {
+        this.readyState = FakeWebSocket.CLOSED;
+        if (typeof this.onclose === 'function') {
+            this.onclose();
+        }
+    }
+
+    emitOpen() {
+        if (typeof this.onopen === 'function') {
+            this.onopen();
+        }
+    }
+
+    emitClose() {
+        this.readyState = FakeWebSocket.CLOSED;
+        if (typeof this.onclose === 'function') {
+            this.onclose();
+        }
+    }
+}
+
+const originalWindow = global.window;
+const originalWebSocket = global.WebSocket;
+const originalSetTimeout = global.setTimeout;
+
+function resetState() {
+    state.clear();
+    sessionState.setConnected(false);
+    sessionState.setSyncStatus('disconnected');
+    sessionState.clearLastError();
+    state.setTimelines([]);
+    state.setCurrentTimeline(null);
+    sessionState.setUserCount(0);
+}
+
+beforeEach(() => {
+    resetState();
+    FakeWebSocket.instances = [];
+    global.window = {
+        location: {
+            protocol: 'http:',
+            host: 'localhost:12345'
+        }
+    };
+    global.WebSocket = FakeWebSocket;
+});
+
+afterEach(() => {
+    resetState();
+    FakeWebSocket.instances = [];
+    global.window = originalWindow;
+    global.WebSocket = originalWebSocket;
+    global.setTimeout = originalSetTimeout;
+});
+
+describe('sync module reconnect behavior', () => {
+    it('rejoins the active timeline on initial socket open', async () => {
+        state.setCurrentTimeline('timeline-1');
+
+        const sync = await import(`../client/sync.js?test=${Date.now()}-${Math.random()}`);
+
+        assert.strictEqual(FakeWebSocket.instances.length, 1);
+        assert.strictEqual(sync.isTimelineReady(), false);
+
+        const socket = FakeWebSocket.instances[0];
+        socket.emitOpen();
+
+        assert.strictEqual(sessionState.connected, true);
+        assert.strictEqual(sessionState.syncStatus, 'rejoining');
+        assert.deepStrictEqual(socket.sent, [
+            { type: 'JOIN_TIMELINE', timelineId: 'timeline-1' }
+        ]);
+    });
+
+    it('rejoins the active timeline again after a disconnect and reconnect', async () => {
+        state.setCurrentTimeline('timeline-2');
+        global.setTimeout = (callback) => {
+            callback();
+            return 1;
+        };
+
+        const sync = await import(`../client/sync.js?test=${Date.now()}-${Math.random()}`);
+
+        const firstSocket = FakeWebSocket.instances[0];
+        firstSocket.emitOpen();
+
+        assert.deepStrictEqual(firstSocket.sent, [
+            { type: 'JOIN_TIMELINE', timelineId: 'timeline-2' }
+        ]);
+
+        firstSocket.emitClose();
+
+        assert.strictEqual(sessionState.connected, false);
+        assert.strictEqual(sessionState.syncStatus, 'reconnecting');
+        assert.strictEqual(FakeWebSocket.instances.length, 2);
+
+        const secondSocket = FakeWebSocket.instances[1];
+        secondSocket.emitOpen();
+
+        assert.strictEqual(sessionState.connected, true);
+        assert.strictEqual(sessionState.syncStatus, 'rejoining');
+        assert.strictEqual(sync.isTimelineReady(), false);
+        assert.deepStrictEqual(secondSocket.sent, [
+            { type: 'JOIN_TIMELINE', timelineId: 'timeline-2' }
+        ]);
+    });
+
+    it('reports timeline readiness only after connected sync and active timeline are both present', async () => {
+        const sync = await import(`../client/sync.js?test=${Date.now()}-${Math.random()}`);
+        const socket = FakeWebSocket.instances[0];
+
+        assert.strictEqual(sync.isTimelineReady(), false);
+
+        socket.emitOpen();
+        assert.strictEqual(sync.isTimelineReady(), false);
+
+        state.setCurrentTimeline('timeline-3');
+        assert.strictEqual(sync.isTimelineReady(), true);
+
+        sessionState.setSyncStatus('rejoining');
+        assert.strictEqual(sync.isTimelineReady(), false);
+    });
+});
+

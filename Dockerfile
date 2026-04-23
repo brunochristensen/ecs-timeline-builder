@@ -14,7 +14,7 @@ COPY server/ ./server/
 COPY shared/ ./shared/
 COPY index.html ./
 COPY css/ ./css/
-COPY js/ ./js/
+COPY client/ ./client/
 COPY lib/ ./lib/
 COPY fonts/ ./fonts/
 
@@ -30,3 +30,4 @@ ENV DATA_FILE=/app/data/timeline.json
 
 # Run the server
 CMD ["node", "server.js"]
+

@@ -3,14 +3,16 @@
  * Renders swim lane timeline with cross-host connection lines
  */
 
+import {escapeHtml} from './utils.js';
+
 // Configuration
 const config = {
-        margin: {top: 110, right: 70, bottom: 40, left: 220},
-        laneHeight: 60,
-        eventRadius: 5,
-        minWidth: 800,
-        transitionDuration: 300
-    };
+    margin: {top: 110, right: 70, bottom: 40, left: 220},
+    laneHeight: 60,
+    eventRadius: 5,
+    minWidth: 800,
+    transitionDuration: 300
+};
 
 /**
  * Calculate top margin based on the floating input box position so that swim lanes
@@ -374,8 +376,8 @@ function renderEvents(events, xScale, yScale, hostRegistry, annotations) {
         .data(allEvents, d => d.id);
 
     const isAnnotated = d => annotations && annotations.has(d.id);
-    const dotClass  = d => isAnnotated(d) ? `event-dot ${d.category} annotated` : `event-dot ${d.category}`;
-    const dotRadius = d => isAnnotated(d) ? 5 : 3.5;
+    const dotClass = d => isAnnotated(d) ? `event-dot ${d.category} annotated` : `event-dot ${d.category}`;
+    const dotRadius = d => isAnnotated(d) ? 6 : 4.5;
 
     // Enter
     dots.enter()
@@ -475,13 +477,17 @@ export function zoomReset() {
  */
 function showEventTooltip(event, d) {
     const tooltip = d3.select('.tooltip');
+    const summary = escapeHtml(String(d.summary || 'Unknown event'));
+    const timestamp = escapeHtml(d.timestamp ? d.timestamp.toLocaleString() : 'Unknown');
+    const host = escapeHtml(String(d.host ? d.host.hostname : 'Unknown'));
+    const category = escapeHtml(String(d.category || 'unknown'));
 
     tooltip.html(`
-            <div class="tooltip-title">${d.summary}</div>
+            <div class="tooltip-title">${summary}</div>
             <div class="tooltip-content">
-                ${d.timestamp.toLocaleString()}<br>
-                Host: ${d.host ? d.host.hostname : 'Unknown'}<br>
-                Category: ${d.category}
+                ${timestamp}<br>
+                Host: ${host}<br>
+                Category: ${category}
             </div>
         `)
         .style('left', (event.pageX + 10) + 'px')
@@ -497,15 +503,23 @@ function showEventTooltip(event, d) {
  */
 function showConnectionTooltip(event, d) {
     const tooltip = d3.select('.tooltip');
+    const sourceHost = escapeHtml(String(d.sourceHost || 'Unknown'));
+    const sourceIp = escapeHtml(String(d.sourceIp || 'Unknown'));
+    const sourcePort = escapeHtml(String(d.sourcePort ?? '?'));
+    const destHost = escapeHtml(String(d.destHost || 'Unknown'));
+    const destIp = escapeHtml(String(d.destIp || 'Unknown'));
+    const destPort = escapeHtml(String(d.destPort ?? '?'));
+    const protocol = escapeHtml(String(d.protocol || 'unknown'));
+    const timestamp = escapeHtml(d.timestamp ? d.timestamp.toLocaleString() : 'Unknown');
 
     tooltip.html(`
             <div class="tooltip-title">Connection</div>
             <div class="tooltip-content">
-                ${d.sourceHost} (${d.sourceIp}:${d.sourcePort || '?'})<br>
-                ↓<br>
-                ${d.destHost} (${d.destIp}:${d.destPort || '?'})<br>
-                Protocol: ${d.protocol || 'unknown'}<br>
-                ${d.timestamp.toLocaleString()}
+                ${sourceHost} (${sourceIp}:${sourcePort})<br>
+                -><br>
+                ${destHost} (${destIp}:${destPort})<br>
+                Protocol: ${protocol}<br>
+                ${timestamp}
             </div>
         `)
         .style('left', (event.pageX + 10) + 'px')

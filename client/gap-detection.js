@@ -1,6 +1,8 @@
-import { state } from './state.js';
-import { TACTICS, getTacticName } from './mitre.js';
-import { escapeHtml } from './utils.js';
+import bus from './event-bus.js';
+import {EVENTS} from './events.js';
+import {state} from './state.js';
+import {TACTICS, getTacticName} from './mitre.js';
+import {escapeHtml} from './utils.js';
 
 /**
  * Gap Detection — per-host MITRE ATT&CK tactic coverage indicator.
@@ -112,14 +114,18 @@ function render() {
 }
 
 /**
- * Initializes the gap detection module by subscribing to state events.
+ * Initializes the gap detection module by subscribing to bus events.
+ * Called automatically on module load (self-wiring).
  */
-export function initGapDetection() {
-    state.on('events:added', invalidateEventsCache);
-    state.on('events:synced', invalidateEventsCache);
-    state.on('event:deleted', invalidateEventsCache);
-    state.on('events:cleared', invalidateEventsCache);
-    state.on('annotation:updated', render);
-    state.on('annotation:deleted', render);
+function init() {
+    bus.on(EVENTS.EVENTS_ADDED, invalidateEventsCache);
+    bus.on(EVENTS.EVENTS_SYNCED, invalidateEventsCache);
+    bus.on(EVENTS.EVENT_DELETED, invalidateEventsCache);
+    bus.on(EVENTS.EVENTS_CLEARED, invalidateEventsCache);
+    bus.on(EVENTS.ANNOTATION_UPDATED, render);
+    bus.on(EVENTS.ANNOTATION_DELETED, render);
     render();
 }
+
+// Self-wire on import
+init();

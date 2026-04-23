@@ -3,7 +3,7 @@ import assert from 'node:assert';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { parseEvents, buildHostRegistry, identifyConnections, getNestedValue } from '../js/parser.js';
+import { parseEvents, buildHostRegistry, identifyConnections, getNestedValue } from '../client/parser.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -543,3 +543,4 @@ describe('Real ECS Data Tests', () => {
     });
 
 });
+

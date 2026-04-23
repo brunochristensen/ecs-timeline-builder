@@ -1,53 +1,138 @@
 /**
  * ECS Timeline Builder - Persistence Layer
- * File I/O for loading and saving event data.
- * No knowledge of event structure, WebSocket, or business logic.
+ * File I/O for timeline index and per-timeline data files.
  */
 
 import fs from 'fs/promises';
 import path from 'path';
 
+const DATA_DIR = process.env.DATA_DIR || './data';
+const INDEX_FILE = 'timelines.json';
+
 /**
- * Loads timeline data from a JSON file.
- *
- * @param {string} filePath - Path to the JSON data file
- * @returns {Promise<{ events: Array, annotations: Object }>} Loaded data
+ * Ensures the data directory exists.
  */
-export async function loadData(filePath) {
+async function ensureDataDir() {
+    await fs.mkdir(DATA_DIR, { recursive: true });
+}
+
+/**
+ * Returns the path to the timeline index file.
+ */
+function getIndexPath() {
+    return path.join(DATA_DIR, INDEX_FILE);
+}
+
+/**
+ * Returns the path to a timeline's data file.
+ */
+function getTimelinePath(id) {
+    return path.join(DATA_DIR, `timeline-${id}.json`);
+}
+
+/**
+ * Generates a short random ID for new timelines.
+ */
+export function generateTimelineId() {
+    return Math.random().toString(36).substring(2, 10);
+}
+
+/**
+ * Loads the timeline index.
+ *
+ * @returns {Promise<{ timelines: Array }>} Index data
+ */
+export async function loadTimelineIndex() {
     try {
-        const raw = await fs.readFile(filePath, 'utf8');
+        const raw = await fs.readFile(getIndexPath(), 'utf8');
+        return JSON.parse(raw);
+    } catch (error) {
+        if (error.code === 'ENOENT') {
+            return { timelines: [] };
+        }
+        console.error('Error loading timeline index:', error.message);
+        return { timelines: [] };
+    }
+}
+
+/**
+ * Saves the timeline index.
+ *
+ * @param {Object} index - { timelines: Array }
+ * @returns {Promise<boolean>} True if save succeeded
+ */
+export async function saveTimelineIndex(index) {
+    try {
+        await ensureDataDir();
+        await fs.writeFile(getIndexPath(), JSON.stringify(index, null, 2));
+        return true;
+    } catch (error) {
+        console.error('Error saving timeline index:', error.message);
+        return false;
+    }
+}
+
+/**
+ * Loads a single timeline's data (events + annotations).
+ *
+ * @param {string} id - Timeline ID
+ * @returns {Promise<{ events: Array, annotations: Object }>} Timeline data
+ */
+export async function loadTimelineData(id) {
+    try {
+        const raw = await fs.readFile(getTimelinePath(id), 'utf8');
         const data = JSON.parse(raw);
         const events = data.events || [];
         const annotations = data.annotations || {};
-        console.log(`Loaded ${events.length} events, ${Object.keys(annotations).length} annotations from ${filePath}`);
+        console.log(`Loaded timeline "${id}": ${events.length} events, ${Object.keys(annotations).length} annotations`);
         return { events, annotations };
     } catch (error) {
         if (error.code === 'ENOENT') {
-            console.log('No existing data file, starting fresh');
+            console.log(`Timeline "${id}" has no data file, starting fresh`);
         } else {
-            console.error('Error loading data:', error.message);
+            console.error(`Error loading timeline "${id}":`, error.message);
         }
         return { events: [], annotations: {} };
     }
 }
 
 /**
- * Saves timeline data to a JSON file. Creates the directory if it doesn't exist.
+ * Saves a single timeline's data.
  *
- * @param {string} filePath - Path to the JSON data file
- * @param {Array} events - Events array to save
- * @param {Object} annotations - Annotations object to save
- * @returns {Promise<boolean>} True if save succeeded, false on failure
+ * @param {string} id - Timeline ID
+ * @param {Array} events - Events array
+ * @param {Object} annotations - Annotations object
+ * @returns {Promise<boolean>} True if save succeeded
  */
-export async function saveData(filePath, events, annotations) {
+export async function saveTimelineData(id, events, annotations) {
     try {
-        await fs.mkdir(path.dirname(filePath), { recursive: true });
+        await ensureDataDir();
         const data = { events, annotations };
-        await fs.writeFile(filePath, JSON.stringify(data));
-        console.log(`Saved ${events.length} events, ${Object.keys(annotations).length} annotations to ${filePath}`);
+        await fs.writeFile(getTimelinePath(id), JSON.stringify(data));
+        console.log(`Saved timeline "${id}": ${events.length} events, ${Object.keys(annotations).length} annotations`);
         return true;
     } catch (error) {
-        console.error('Error saving data:', error.message);
+        console.error(`Error saving timeline "${id}":`, error.message);
+        return false;
+    }
+}
+
+/**
+ * Deletes a timeline's data file.
+ *
+ * @param {string} id - Timeline ID
+ * @returns {Promise<boolean>} True if deletion succeeded or file didn't exist
+ */
+export async function deleteTimelineData(id) {
+    try {
+        await fs.unlink(getTimelinePath(id));
+        console.log(`Deleted timeline data file for "${id}"`);
+        return true;
+    } catch (error) {
+        if (error.code === 'ENOENT') {
+            return true;
+        }
+        console.error(`Error deleting timeline "${id}":`, error.message);
         return false;
     }
 }
