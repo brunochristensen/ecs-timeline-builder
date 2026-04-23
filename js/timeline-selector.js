@@ -19,6 +19,7 @@ function init() {
 
     bus.on('timelines:changed', renderTimelineList);
     bus.on('timeline:created', renderTimelineList);
+    bus.on('timeline:updated', renderTimelineList);
     bus.on('timeline:deleted', renderTimelineList);
     bus.on('timeline:joined', hideSelector);
 }
