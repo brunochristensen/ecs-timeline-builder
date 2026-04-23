@@ -256,7 +256,6 @@ body {
     padding-left: var(--sidebar-width);
     background: var(--bg-base);
     overflow: auto;
-    cursor: crosshair;
     transition: padding-left 0.2s ease;
 }
 
