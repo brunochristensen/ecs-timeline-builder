@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node server.js",
     "test": "node --test test/*.test.js",
-    "lint": "eslint js/*.js server.js"
+    "lint": "eslint js/*.js server.js server/*.js shared/*.js test/*.js"
   },
   "repository": {
     "type": "git",
