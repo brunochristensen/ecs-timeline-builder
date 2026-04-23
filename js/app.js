@@ -8,83 +8,41 @@ import {
     clearTimelineVisualization
 } from "./timeline.js";
 import {formatDuration} from "./utils.js";
-import {renderEventDetailPanel, renderMitreOptions} from "./detail-renderer.js";
-import {
-    isConnected,
-    sendEventsToServer,
-    sendDeleteToServer,
-    sendClearToServer,
-    sendAnnotationToServer,
-    sendDeleteAnnotationToServer,
-    joinTimeline,
-    retryConnection
-} from "./sync.js";
+import {isConnected, sendClearToServer, joinTimeline, retryConnection} from "./sync.js";
 import {state} from "./state.js";
-import {sessionState} from "./stores/session-store.js";
-import {TECHNIQUES} from "./mitre.js";
+import {initStatusBarController, resetStatusStats, stampStatusSync, updateStatusStats} from "./features/status-bar-controller.js";
+import {initImportController} from "./features/import-controller.js";
+import {initDetailPanelController, showEventDetail} from "./features/detail-panel-controller.js";
 import "./gap-detection.js";
 import {showSelector, getTimelineIdFromUrl} from "./timeline-selector.js";
 
-// DOM Elements
-const dropZone = document.getElementById('drop-zone');
-const fileInput = document.getElementById('file-input');
-const jsonInput = document.getElementById('json-input');
-const parseBtn = document.getElementById('parse-btn');
 const clearBtn = document.getElementById('clear-btn');
 const exportBtn = document.getElementById('export-btn');
-const eventDetail = document.getElementById('event-detail');
-const detailContent = document.getElementById('detail-content');
-const closeDetailBtn = document.getElementById('close-detail');
-
-// Sidebar elements
 const sidebar = document.getElementById('sidebar');
 const sidebarToggle = document.getElementById('sidebar-toggle');
-
-// Zoom buttons
 const zoomInBtn = document.getElementById('zoom-in');
 const zoomOutBtn = document.getElementById('zoom-out');
 const zoomResetBtn = document.getElementById('zoom-reset');
 
-// Status bar elements
-const statusLed = document.getElementById('status-led');
-const statusLink = document.getElementById('status-link');
-const statusCase = document.getElementById('status-case');
-const statusEventsEl = document.getElementById('status-events');
-const statusHostsEl = document.getElementById('status-hosts');
-const statusSyncEl = document.getElementById('status-sync');
-const statusAlert = document.getElementById('status-alert');
-const statusMessage = document.getElementById('status-message');
-const statusRetryBtn = document.getElementById('status-retry');
-
-// Currently displayed event in the detail panel (for annotation refresh)
-let currentDetailEvent = null;
 let initialTimelineHandled = false;
 
-/**
- * Initializes the application on page load.
- * Sets up D3 visualization, event listeners, state subscriptions, and WebSocket sync.
- */
 function init() {
     initTimelineVisualization('#timeline-container', showEventDetail);
+    initImportController();
+    initDetailPanelController();
+    initStatusBarController({
+        onSelectTimeline: showSelector,
+        onRetryConnection: retryConnection
+    });
 
-    setupDragDrop();
-    setupPasteInput();
     setupZoomControls();
-    setupDetailPanel();
     setupSidebar();
     setupHeaderControls();
-    setupTimelineSwitch();
-    setupStatusActions();
     subscribeToState();
 
-    // After WebSocket connects, and we receive timeline list, handle auto-join or show selector
     bus.on('timelines:changed', handleTimelineListReceived);
 }
 
-/**
- * Handles the initial timeline list received from the server.
- * Auto-joins if the URL has the timeline param, otherwise shows the selector.
- */
 function handleTimelineListReceived() {
     if (initialTimelineHandled) return;
     initialTimelineHandled = true;
@@ -98,116 +56,9 @@ function handleTimelineListReceived() {
         }
     }
 
-    // No URL param or the timeline isn't found, show selector
     showSelector();
 }
 
-/**
- * Updates the status bar with the current timeline name.
- */
-function updateTimelineDisplay() {
-    const timeline = state.currentTimeline;
-    if (statusCase) {
-        if (timeline) {
-            statusCase.textContent = timeline.name;
-            statusCase.title = `${timeline.description || timeline.name} (click to switch)`;
-            statusCase.style.cursor = 'pointer';
-        } else {
-            statusCase.textContent = 'No Timeline';
-            statusCase.title = 'Click to select a timeline';
-            statusCase.style.cursor = 'pointer';
-        }
-    }
-}
-
-/**
- * Updates status-bar link text and indicator from sync lifecycle state.
- *
- * @param {string} [status=sessionState.syncStatus] - Current sync lifecycle state
- */
-function updateSyncStatus(status = sessionState.syncStatus) {
-    if (statusLed) {
-        statusLed.classList.toggle('connected', status === 'connected');
-        statusLed.classList.toggle('disconnected', status === 'failed' || status === 'disconnected');
-        statusLed.classList.toggle('warning', status === 'reconnecting' || status === 'rejoining');
-    }
-
-    if (!statusLink) return;
-
-    statusLink.classList.remove('warning', 'error');
-
-    if (status === 'connected') {
-        statusLink.textContent = 'ACTIVE';
-        return;
-    }
-
-    if (status === 'rejoining') {
-        statusLink.textContent = 'REJOINING';
-        statusLink.classList.add('warning');
-        return;
-    }
-
-    if (status === 'reconnecting') {
-        statusLink.textContent = 'RECONNECTING';
-        statusLink.classList.add('warning');
-        return;
-    }
-
-    if (status === 'failed') {
-        statusLink.textContent = 'FAILED';
-        statusLink.classList.add('error');
-        return;
-    }
-
-    statusLink.textContent = 'OFFLINE';
-    statusLink.classList.add('error');
-}
-
-/**
- * Show or hide the visible sync/server error banner.
- *
- * @param {string} [message=sessionState.lastError] - Error to surface to the user
- */
-function updateErrorBanner(message = sessionState.lastError) {
-    if (!statusAlert || !statusMessage) return;
-    const hasMessage = Boolean(message);
-    statusAlert.hidden = !hasMessage;
-    statusMessage.textContent = message || '';
-}
-
-/**
- * Sets up the timeline switch handler on the status bar.
- */
-function setupTimelineSwitch() {
-    if (statusCase) {
-        statusCase.addEventListener('click', () => {
-            showSelector();
-        });
-    }
-}
-
-function setupStatusActions() {
-    if (statusRetryBtn) {
-        statusRetryBtn.addEventListener('click', () => retryConnection());
-    }
-}
-
-/**
- * Updates the last-sync timestamp in the status bar to the current time.
- */
-function stampSync() {
-    if (!statusSyncEl) return;
-    const now = new Date();
-    const hh = String(now.getHours()).padStart(2, '0');
-    const mm = String(now.getMinutes()).padStart(2, '0');
-    const ss = String(now.getSeconds()).padStart(2, '0');
-    statusSyncEl.textContent = `${hh}:${mm}:${ss}Z`;
-}
-
-/**
- * Refreshes the timeline visualization and UI controls to match the current state.
- * Renders events when present, otherwise shows the empty state.
- */
 function refreshTimelineUi() {
     const hasEvents = state.events.length > 0;
     clearBtn.disabled = !hasEvents;
@@ -220,54 +71,17 @@ function refreshTimelineUi() {
         resetStats();
         clearTimelineVisualization();
     }
-    stampSync();
+
+    stampStatusSync();
 }
 
-/**
- * Re-renders the detail panel if it is open for the given event ID.
- *
- * @param {string} eventId - The event ID whose detail panel should refresh
- */
-function refreshDetailIfOpen(eventId) {
-    if (currentDetailEvent && currentDetailEvent.id === eventId) {
-        showEventDetail(currentDetailEvent);
-    }
-}
-
-/**
- * Subscribes to state change events and updates UI accordingly.
- */
 function subscribeToState() {
     bus.on('events:added', refreshTimelineUi);
     bus.on('events:synced', refreshTimelineUi);
+    bus.on('event:deleted', refreshTimelineUi);
+    bus.on('events:cleared', refreshTimelineUi);
 
-    bus.on('event:deleted', () => {
-        eventDetail.hidden = true;
-        refreshTimelineUi();
-    });
-
-    bus.on('events:cleared', () => {
-        jsonInput.value = '';
-        eventDetail.hidden = true;
-        refreshTimelineUi();
-    });
-
-    bus.on('connection:changed', (connected) => {
-        if (!connected) {
-            document.getElementById('stat-users').textContent = '—';
-        }
-    });
-
-    bus.on('usercount:changed', (count) => {
-        document.getElementById('stat-users').textContent = count;
-    });
-
-    bus.on('syncstatus:changed', updateSyncStatus);
-    bus.on('error:changed', updateErrorBanner);
-
-    // Annotation changes refresh the detail panel (if open) and update timeline markers
-    const onAnnotationChange = (eventId) => {
-        refreshDetailIfOpen(eventId);
+    const onAnnotationChange = () => {
         if (state.events.length > 0) {
             renderTimelineVisualization(state.events, state.hostRegistry, state.connections, state.annotations);
         }
@@ -275,35 +89,21 @@ function subscribeToState() {
     bus.on('annotation:updated', onAnnotationChange);
     bus.on('annotation:deleted', onAnnotationChange);
 
-    // Timeline changes
-    bus.on('timeline:joined', updateTimelineDisplay);
-    bus.on('timeline:updated', updateTimelineDisplay);
     bus.on('timeline:deleted', (deletedId) => {
         if (state.currentTimelineId === deletedId || !state.currentTimelineId) {
             showSelector();
         }
     });
-
-    updateTimelineDisplay();
-    updateSyncStatus();
-    updateErrorBanner();
 }
 
-/**
- * Resets all statistics displays to their default empty values.
- */
 function resetStats() {
     document.getElementById('stat-events').textContent = '0';
     document.getElementById('stat-hosts').textContent = '0';
     document.getElementById('stat-connections').textContent = '0';
-    document.getElementById('stat-timespan').textContent = '—';
-    if (statusEventsEl) statusEventsEl.textContent = '0';
-    if (statusHostsEl) statusHostsEl.textContent = '0';
+    document.getElementById('stat-timespan').textContent = '--';
+    resetStatusStats();
 }
 
-/**
- * Updates the statistics panel from the current state.
- */
 function updateStats() {
     const events = state.events;
     const hostRegistry = state.hostRegistry;
@@ -314,175 +114,23 @@ function updateStats() {
     document.getElementById('stat-hosts').textContent = hostCount;
     document.getElementById('stat-connections').textContent = connections.length;
 
-    const timestamps = events.map(e => e.timestamp).sort((a, b) => a - b);
+    const timestamps = events.map(event => event.timestamp).sort((a, b) => a - b);
     if (timestamps.length > 1) {
         const duration = timestamps[timestamps.length - 1] - timestamps[0];
         document.getElementById('stat-timespan').textContent = formatDuration(duration);
     } else {
-        document.getElementById('stat-timespan').textContent = '—';
+        document.getElementById('stat-timespan').textContent = '--';
     }
 
-    if (statusEventsEl) statusEventsEl.textContent = events.length;
-    if (statusHostsEl) statusHostsEl.textContent = hostCount;
+    updateStatusStats(events.length, hostCount);
 }
 
-/**
- * Configures drag-and-drop file upload functionality.
- */
-function setupDragDrop() {
-    dropZone.addEventListener('click', () => fileInput.click());
-
-    fileInput.addEventListener('change', (e) => {
-        if (e.target.files.length > 0) {
-            handleFiles(Array.from(e.target.files));
-        }
-    });
-
-    dropZone.addEventListener('dragover', (e) => {
-        e.preventDefault();
-        dropZone.classList.add('drag-over');
-    });
-
-    dropZone.addEventListener('dragleave', (e) => {
-        e.preventDefault();
-        dropZone.classList.remove('drag-over');
-    });
-
-    dropZone.addEventListener('drop', (e) => {
-        e.preventDefault();
-        dropZone.classList.remove('drag-over');
-
-        const files = Array.from(e.dataTransfer.files).filter(
-            f => f.name.endsWith('.json') || f.name.endsWith('.ndjson')
-        );
-
-        if (files.length > 0) {
-            handleFiles(files);
-        }
-    });
-}
-
-/**
- * Reads dropped or selected JSON/NDJSON files and triggers parsing.
- *
- * @param {File[]} files - Array of File objects to process
- */
-async function handleFiles(files) {
-    let allContent = '';
-
-    for (const file of files) {
-        try {
-            const content = await readFile(file);
-            allContent += content + '\n';
-        } catch (error) {
-            console.error(`Error reading file ${file.name}:`, error);
-            alert(`Error reading file ${file.name}: ${error.message}`);
-        }
-    }
-
-    if (allContent.trim()) {
-        jsonInput.value = allContent.trim();
-        parseAndRender();
-    }
-}
-
-/**
- * Reads a file's contents as text using FileReader API.
- *
- * @param {File} file - File object to read
- * @returns {Promise<string>} Resolves with file contents as string
- */
-function readFile(file) {
-    return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = (e) => resolve(e.target.result);
-        reader.onerror = () => reject(new Error('Failed to read file'));
-        reader.readAsText(file);
-    });
-}
-
-/**
- * Sets up the parse button and keyboard shortcut (Ctrl+Enter) for the JSON textarea.
- */
-function setupPasteInput() {
-    parseBtn.addEventListener('click', parseAndRender);
-
-    jsonInput.addEventListener('keydown', (e) => {
-        if (e.ctrlKey && e.key === 'Enter') {
-            parseAndRender();
-        }
-    });
-}
-
-/**
- * Parses JSON input, deduplicates against existing events, and syncs to the server.
- * State subscriptions handle rendering and UI updates.
- */
-function parseAndRender() {
-    const input = jsonInput.value.trim();
-
-    if (!input) {
-        alert('Please enter or drop some ECS JSON data');
-        return;
-    }
-
-    try {
-        const result = state.addEvents(input);
-
-        if (result.parsed === 0) {
-            alert('No valid events found in the input');
-            return;
-        }
-
-        if (result.added.length === 0) {
-            alert(`All ${result.parsed} events already exist in the timeline`);
-            jsonInput.value = '';
-            return;
-        }
-
-        // Send to server for broadcast to other clients
-        if (isConnected()) {
-            const rawEvents = result.added.map(e => ({_id: e.id, ...e.raw}));
-            sendEventsToServer(rawEvents);
-        }
-
-        jsonInput.value = '';
-
-        if (result.duplicates > 0) {
-            console.log(`Added ${result.added.length} events, skipped ${result.duplicates} duplicates`);
-        }
-
-    } catch (error) {
-        console.error('Parse error:', error);
-        alert(`Error parsing events: ${error.message}`);
-    }
-}
-
-/**
- * Attaches click handlers to zoom in, out, and reset buttons.
- */
 function setupZoomControls() {
     zoomInBtn.addEventListener('click', () => zoomIn());
     zoomOutBtn.addEventListener('click', () => zoomOut());
     zoomResetBtn.addEventListener('click', () => zoomReset());
 }
 
-/**
- * Sets up the event detail panel close button and Escape key handler.
- */
-function setupDetailPanel() {
-    closeDetailBtn.addEventListener('click', hideEventDetail);
-
-    document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape' && !eventDetail.hidden) {
-            hideEventDetail();
-        }
-    });
-}
-
-/**
- * Attaches click handler to sidebar collapse/expand toggle.
- */
 function setupSidebar() {
     const timelineContainer = document.getElementById('timeline-container');
     const appContainer = document.querySelector('.app-container');
@@ -493,95 +141,11 @@ function setupSidebar() {
     });
 }
 
-/**
- * Displays the event detail panel with information about the clicked event.
- *
- * @param {Object} event - The parsed event object to display
- */
-function showEventDetail(event) {
-    currentDetailEvent = event;
-    const annotation = state.annotations.get(event.id) || null;
-    detailContent.innerHTML = renderEventDetailPanel(event, annotation);
-    eventDetail.hidden = false;
-
-    // Delete event button
-    const deleteBtn = document.getElementById('delete-event-btn');
-    if (deleteBtn) {
-        deleteBtn.addEventListener('click', () => {
-            const eventId = deleteBtn.dataset.eventId;
-            if (confirm('Delete this event? This cannot be undone.')) {
-                if (isConnected()) {
-                    sendDeleteToServer(eventId);
-                } else {
-                    state.deleteEvent(eventId);
-                }
-            }
-        });
-    }
-
-    // Tactic dropdown changes technique options
-    const tacticSelect = document.getElementById('annotation-tactic');
-    const techniqueSelect = document.getElementById('annotation-technique');
-    if (tacticSelect && techniqueSelect) {
-        tacticSelect.addEventListener('change', () => {
-            const techniqueList = TECHNIQUES[tacticSelect.value] || null;
-            techniqueSelect.innerHTML = renderMitreOptions(techniqueList, '', '-- Select Technique --');
-        });
-    }
-
-    // Save annotation button
-    const saveAnnotationBtn = document.getElementById('save-annotation-btn');
-    if (saveAnnotationBtn) {
-        saveAnnotationBtn.addEventListener('click', () => {
-            const comment = document.getElementById('annotation-comment').value;
-            const mitreTactic = document.getElementById('annotation-tactic').value;
-            const mitreTechnique = document.getElementById('annotation-technique').value;
-
-            const annotationData = {comment, mitreTactic, mitreTechnique};
-
-            if (isConnected()) {
-                sendAnnotationToServer(event.id, annotationData);
-            } else {
-                state.setAnnotation(event.id, {
-                    eventId: event.id,
-                    ...annotationData,
-                    updatedAt: Date.now()
-                });
-            }
-        });
-    }
-
-    // Delete annotation button
-    const deleteAnnotationBtn = document.getElementById('delete-annotation-btn');
-    if (deleteAnnotationBtn) {
-        deleteAnnotationBtn.addEventListener('click', () => {
-            if (isConnected()) {
-                sendDeleteAnnotationToServer(event.id);
-            } else {
-                state.deleteAnnotation(event.id);
-            }
-        });
-    }
-}
-
-/**
- * Hides the event detail panel.
- */
-function hideEventDetail() {
-    eventDetail.hidden = true;
-}
-
-/**
- * Attaches click handlers to the clear and export header buttons.
- */
 function setupHeaderControls() {
     clearBtn.addEventListener('click', clearTimeline);
     exportBtn.addEventListener('click', exportTimeline);
 }
 
-/**
- * Exports all current events as a timestamped JSON file download.
- */
 function exportTimeline() {
     if (state.events.length === 0) {
         alert('No events to export');
@@ -590,7 +154,7 @@ function exportTimeline() {
 
     const exportData = {
         exportedAt: new Date().toISOString(),
-        events: state.events.map(e => e.raw),
+        events: state.events.map(event => event.raw),
         annotations: Object.fromEntries(state.annotations)
     };
     const jsonString = JSON.stringify(exportData, null, 2);
@@ -601,20 +165,16 @@ function exportTimeline() {
     const timestamp = now.toISOString().replace(/[:.]/g, '-').slice(0, 19);
     const filename = `ecs-timeline-${timestamp}.json`;
 
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = filename;
+    document.body.appendChild(anchor);
+    anchor.click();
+    document.body.removeChild(anchor);
 
     URL.revokeObjectURL(url);
 }
 
-/**
- * Initiates timeline clear operation.
- * If connected, sends the clear request to the server; otherwise clears locally.
- */
 function clearTimeline() {
     if (isConnected()) {
         sendClearToServer();
@@ -624,7 +184,6 @@ function clearTimeline() {
     state.clear();
 }
 
-// Initialize when DOM is ready
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init);
 } else {
